@@ -22,8 +22,6 @@ const Contact = () => {
     message: "",
   });
 
-  const [preferredContact, setPreferredContact] = useState("email");
-
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -34,28 +32,26 @@ const Contact = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (preferredContact === "whatsapp") {
-      sendWhatsAppMessage();
-    } else {
-      // Handle email form submission
-      console.log("Form submitted:", formData);
-      alert("Thank you for your message! We will get back to you soon.");
-      setFormData({
-        name: "",
-        email: "",
-        phone: "",
-        subject: "",
-        message: "",
-      });
-    }
-  };
+    // Email form submission
+    console.log("Form submitted:", formData);
 
-  const sendWhatsAppMessage = () => {
-    const phoneNumber = "254722266955"; // Jozz Tembo's phone number without +
-    const message = `Hello Jozz Tembo Tours!%0A%0A*Name:* ${formData.name}%0A*Email:* ${formData.email}%0A*Phone:* ${formData.phone}%0A*Subject:* ${formData.subject}%0A%0A*Message:*%0A${formData.message}%0A%0AI'm interested in your safari services. Please contact me!`;
+    // Construct email body
+    const emailBody = `Name: ${formData.name}%0D%0AEmail: ${formData.email}%0D%0APhone: ${formData.phone}%0D%0ASubject: ${formData.subject}%0D%0A%0D%0AMessage:%0D%0A${formData.message}`;
 
-    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
-    window.open(whatsappUrl, "_blank");
+    // Open default email client
+    window.open(
+      `mailto:tembo4401@gmail.com?subject=${formData.subject}&body=${emailBody}`,
+      "_blank"
+    );
+
+    alert("Thank you for your message! We will get back to you soon.");
+    setFormData({
+      name: "",
+      email: "",
+      phone: "",
+      subject: "",
+      message: "",
+    });
   };
 
   const openWhatsAppDirect = () => {
@@ -119,35 +115,6 @@ const Contact = () => {
           </motion.p>
         </div>
       </section>
-
-      {/* WhatsApp Quick Action */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.5, duration: 0.6 }}
-        className="max-w-7xl mx-auto px-4 -mt-8 mb-8"
-      >
-        <div className="bg-green-600 text-white rounded-2xl p-6 shadow-xl">
-          <div className="flex flex-col md:flex-row items-center justify-between">
-            <div className="flex items-center space-x-4 mb-4 md:mb-0">
-              <FaWhatsapp className="text-4xl" />
-              <div>
-                <h3 className="text-xl font-bold">Quick WhatsApp Chat</h3>
-                <p className="text-green-100">
-                  Get instant responses on WhatsApp
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={openWhatsAppDirect}
-              className="bg-white text-green-600 px-8 py-3 rounded-lg font-semibold hover:bg-green-50 transition-all duration-300 flex items-center space-x-2"
-            >
-              <FaWhatsapp />
-              <span>Chat on WhatsApp</span>
-            </button>
-          </div>
-        </div>
-      </motion.div>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -229,6 +196,7 @@ const Contact = () => {
                   <h3 className="font-semibold text-gray-800 text-lg">
                     Email Us
                   </h3>
+                  <p className="text-gray-600">tembo4401@gmail.com</p>
                   <p className="text-gray-600">info@jozztembotours.com</p>
                 </div>
               </div>
@@ -307,39 +275,6 @@ const Contact = () => {
             <p className="text-gray-600 mb-8">
               We typically respond within 2 hours
             </p>
-
-            {/* Contact Method Selection */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Preferred Contact Method
-              </label>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => setPreferredContact("email")}
-                  className={`p-4 rounded-lg border-2 transition-all duration-300 ${
-                    preferredContact === "email"
-                      ? "border-amber-500 bg-amber-50 text-amber-700"
-                      : "border-gray-300 bg-white text-gray-600 hover:border-amber-300"
-                  }`}
-                >
-                  <FaEnvelope className="text-xl mx-auto mb-2" />
-                  <span className="font-medium">Email</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPreferredContact("whatsapp")}
-                  className={`p-4 rounded-lg border-2 transition-all duration-300 ${
-                    preferredContact === "whatsapp"
-                      ? "border-green-500 bg-green-50 text-green-700"
-                      : "border-gray-300 bg-white text-gray-600 hover:border-green-300"
-                  }`}
-                >
-                  <FaWhatsapp className="text-xl mx-auto mb-2" />
-                  <span className="font-medium">WhatsApp</span>
-                </button>
-              </div>
-            </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid md:grid-cols-2 gap-6">
@@ -447,40 +382,27 @@ const Contact = () => {
 
               <button
                 type="submit"
-                className={`w-full py-4 px-6 rounded-lg font-semibold text-lg transition-all duration-300 flex items-center justify-center space-x-2 ${
-                  preferredContact === "whatsapp"
-                    ? "bg-green-600 text-white hover:bg-green-700"
-                    : "bg-amber-600 text-white hover:bg-amber-700"
-                }`}
+                className="w-full py-4 px-6 rounded-lg font-semibold text-lg bg-amber-600 text-white hover:bg-amber-700 transition-all duration-300 flex items-center justify-center space-x-2"
               >
-                <span>
-                  {preferredContact === "whatsapp"
-                    ? "Send via WhatsApp"
-                    : "Send Message"}
-                </span>
-                {preferredContact === "whatsapp" ? (
-                  <FaWhatsapp />
-                ) : (
-                  <FaPaperPlane />
-                )}
+                <span>Send Message via Email</span>
+                <FaEnvelope />
               </button>
 
-              {preferredContact === "whatsapp" && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <div className="flex items-start space-x-3">
-                    <FaWhatsapp className="text-green-600 mt-1 flex-shrink-0" />
-                    <div>
-                      <p className="text-green-800 text-sm font-medium">
-                        WhatsApp Message
-                      </p>
-                      <p className="text-green-700 text-sm">
-                        Your message will open in WhatsApp with all your details
-                        pre-filled. Just hit send!
-                      </p>
-                    </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <FaEnvelope className="text-blue-600 mt-1 flex-shrink-0" />
+                  <div>
+                    <p className="text-blue-800 text-sm font-medium">
+                      Email Message
+                    </p>
+                    <p className="text-blue-700 text-sm">
+                      Your message will be sent to{" "}
+                      <strong>tembo4401@gmail.com</strong> via your default
+                      email client.
+                    </p>
                   </div>
                 </div>
-              )}
+              </div>
 
               <p className="text-center text-gray-500 text-sm">
                 * Required fields. We respect your privacy and will never share

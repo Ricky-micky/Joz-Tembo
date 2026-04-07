@@ -1,14 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Swal from "sweetalert2";
 
 const Taitahills = () => {
   const [selectedRoute, setSelectedRoute] = useState(null);
   const [selectedDays, setSelectedDays] = useState(3);
+  const [selectedLodge, setSelectedLodge] = useState(null);
   const [showItineraryModal, setShowItineraryModal] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
+  const [showLodgeModal, setShowLodgeModal] = useState(false);
   const [activeGalleryImage, setActiveGalleryImage] = useState(0);
   const [showGalleryModal, setShowGalleryModal] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingForm, setBookingForm] = useState({
     fullName: "",
     email: "",
@@ -17,6 +18,292 @@ const Taitahills = () => {
     message: "",
     startDate: "",
   });
+  const [isLoading, setIsLoading] = useState(false);
+
+  // UPDATED: Backend connection state
+  const [backendStatus, setBackendStatus] = useState({
+    connected: false,
+    packageCount: 0,
+  });
+
+  // NEW: Admin form state
+  const [showAdminForm, setShowAdminForm] = useState(false);
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [selectedRouteForPricing, setSelectedRouteForPricing] = useState(null);
+  const [adminForm, setAdminForm] = useState({
+    routeName: "",
+    description: "",
+    duration: "3-5 days recommended",
+    highlights: "",
+    itinerary: "",
+    priceOptions: [
+      { people: 1, price: 270, currency: "usd" },
+      { people: 2, price: 240, currency: "usd" },
+      { people: 3, price: 220, currency: "usd" },
+      { people: 4, price: 200, currency: "usd" },
+      { people: 5, price: 190, currency: "usd" },
+      { people: 6, price: 180, currency: "usd" },
+      { people: 7, price: 170, currency: "usd" },
+      { people: 8, price: 160, currency: "usd" },
+    ],
+  });
+
+  // DEFAULT safari routes - only used if localStorage is empty
+  const defaultSafariRoutes = [
+    {
+      id: 1,
+      name: "Taita Hills → Tsavo West → Mzima Springs",
+      description:
+        "Explore the biodiversity hotspot of Taita Hills combined with the volcanic landscapes of Tsavo West.",
+      duration: "4-6 days recommended",
+      highlights: ["Endemic Species", "Cloud Forests", "Volcanic Landscapes"],
+      itinerary:
+        "Day 1: Arrival at Taita Hills, check-in and nature walk. Day 2: Full day exploring Taita Hills forest fragments. Day 3: Transfer to Tsavo West, visit Mzima Springs. Day 4: Game drives in Tsavo West. Day 5: Early morning game drive, return to Taita Hills. Day 6: Morning bird watching, departure.",
+      priceOptions: [
+        { people: 1, price: 370, currency: "usd" },
+        { people: 2, price: 320, currency: "usd" },
+        { people: 3, price: 290, currency: "usd" },
+        { people: 4, price: 270, currency: "usd" },
+        { people: 5, price: 250, currency: "usd" },
+        { people: 6, price: 240, currency: "usd" },
+        { people: 7, price: 230, currency: "usd" },
+        { people: 8, price: 220, currency: "usd" },
+      ],
+      priceRange: { min: 220, max: 370 },
+    },
+    {
+      id: 2,
+      name: "Taita Hills Birding Special",
+      description:
+        "Focused bird watching tour targeting Taita's endemic and rare bird species with expert guides.",
+      duration: "3-5 days recommended",
+      highlights: ["Endemic Birds", "Forest Hiking", "Conservation Focus"],
+      itinerary:
+        "Day 1: Arrival and orientation, afternoon birding in Chawia Forest. Day 2: Full day birding in Ngangao Forest with picnic lunch. Day 3: Mbololo Forest exploration and photography. Day 4: Early morning birding, conservation center visit. Day 5: Final birding session and departure.",
+      priceOptions: [
+        { people: 1, price: 340, currency: "usd" },
+        { people: 2, price: 300, currency: "usd" },
+        { people: 3, price: 270, currency: "usd" },
+        { people: 4, price: 250, currency: "usd" },
+        { people: 5, price: 230, currency: "usd" },
+        { people: 6, price: 220, currency: "usd" },
+        { people: 7, price: 210, currency: "usd" },
+        { people: 8, price: 200, currency: "usd" },
+      ],
+      priceRange: { min: 200, max: 340 },
+    },
+    {
+      id: 3,
+      name: "Taita Hills Luxury Conservation Experience",
+      description:
+        "Premium safari combining luxury accommodation with conservation activities and scientific insights.",
+      duration: "3-4 days recommended",
+      highlights: ["Luxury Lodges", "Conservation Tours", "Private Guides"],
+      itinerary:
+        "Day 1: Arrival at luxury eco-lodge, welcome briefing and sundowners. Day 2: Private guided forest hike, visit to research station, afternoon spa. Day 3: Conservation activity participation, photography workshop. Day 4: Breakfast with researchers, farewell and departure.",
+      priceOptions: [
+        { people: 1, price: 500, currency: "usd" },
+        { people: 2, price: 450, currency: "usd" },
+        { people: 3, price: 400, currency: "usd" },
+        { people: 4, price: 380, currency: "usd" },
+        { people: 5, price: 360, currency: "usd" },
+        { people: 6, price: 340, currency: "usd" },
+        { people: 7, price: 330, currency: "usd" },
+        { people: 8, price: 320, currency: "usd" },
+      ],
+      priceRange: { min: 320, max: 500 },
+    },
+  ];
+
+  // Load safari routes from localStorage on initial load
+  const [safariRoutes, setSafariRoutes] = useState(() => {
+    try {
+      const savedRoutes = localStorage.getItem("taitaHillsPackages");
+      if (savedRoutes) {
+        return JSON.parse(savedRoutes);
+      }
+      // If no saved routes, save default routes to localStorage
+      localStorage.setItem(
+        "taitaHillsPackages",
+        JSON.stringify(defaultSafariRoutes),
+      );
+      return defaultSafariRoutes;
+    } catch (error) {
+      console.error("Error loading Taita Hills packages:", error);
+      return defaultSafariRoutes;
+    }
+  });
+
+  // NEW: Save safari routes to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem("taitaHillsPackages", JSON.stringify(safariRoutes));
+    } catch (error) {
+      console.error("Error saving Taita Hills packages:", error);
+    }
+  }, [safariRoutes]);
+
+  // NEW: Function to save safari routes to localStorage
+  const saveSafariRoutesToStorage = (routes) => {
+    try {
+      localStorage.setItem("taitaHillsPackages", JSON.stringify(routes));
+    } catch (error) {
+      console.error("Error saving to localStorage:", error);
+      Swal.fire({
+        title: "Storage Error",
+        text: "Could not save safari packages. Please try again.",
+        icon: "error",
+        confirmButtonColor: "#059669",
+      });
+    }
+  };
+
+  // UPDATED: Check backend connection on mount
+  useEffect(() => {
+    const checkBackendConnection = async () => {
+      try {
+        // Try to get safari packages directly
+        const packagesResponse = await fetch(
+          "http://localhost:5000/api/safari-cards",
+        );
+        if (packagesResponse.ok) {
+          const packagesData = await packagesResponse.json();
+          setBackendStatus({
+            connected: true,
+            packageCount: packagesData.success ? packagesData.count : 0,
+          });
+
+          // Load packages from backend if connected
+          if (packagesData.success && packagesData.data.length > 0) {
+            loadPackagesFromBackend(packagesData.data);
+          }
+        }
+      } catch (error) {
+        console.log("Backend not connected, using local storage only");
+        setBackendStatus({
+          connected: false,
+          packageCount: 0,
+        });
+      }
+    };
+
+    checkBackendConnection();
+  }, []);
+
+  // UPDATED: Load packages from backend and merge with local
+  const loadPackagesFromBackend = (backendPackages) => {
+    try {
+      // Convert backend format to frontend format
+      const convertedPackages = backendPackages.map((pkg) => {
+        const hasPrices = pkg.prices && pkg.prices.length > 0;
+        const basePrice = hasPrices ? pkg.prices[0] : null;
+
+        return {
+          id: `backend_${pkg.id}`,
+          backendId: pkg.id,
+          name: pkg.name,
+          description: pkg.description || "",
+          duration: `${pkg.total_days || 5}-${(pkg.total_days || 5) + 2} days recommended`,
+          highlights: pkg.highlights || [],
+          itinerary: pkg.description || "",
+          priceOptions:
+            hasPrices && basePrice.prices
+              ? [
+                  {
+                    people: 1,
+                    price: basePrice.prices.pax_1_price || 270,
+                    currency: "usd",
+                  },
+                  {
+                    people: 2,
+                    price: basePrice.prices.pax_2_price || 240,
+                    currency: "usd",
+                  },
+                  {
+                    people: 4,
+                    price: basePrice.prices.pax_4_price || 200,
+                    currency: "usd",
+                  },
+                  {
+                    people: 6,
+                    price: basePrice.prices.pax_6_price || 180,
+                    currency: "usd",
+                  },
+                  {
+                    people: 8,
+                    price: basePrice.prices.pax_8_price || 160,
+                    currency: "usd",
+                  },
+                ]
+              : defaultSafariRoutes[0].priceOptions,
+          priceRange: {
+            min:
+              hasPrices && basePrice.prices
+                ? Math.min(
+                    basePrice.prices.pax_1_price || 270,
+                    basePrice.prices.pax_2_price || 240,
+                    basePrice.prices.pax_4_price || 200,
+                    basePrice.prices.pax_6_price || 180,
+                    basePrice.prices.pax_8_price || 160,
+                  )
+                : 160,
+            max:
+              hasPrices && basePrice.prices
+                ? Math.max(
+                    basePrice.prices.pax_1_price || 270,
+                    basePrice.prices.pax_2_price || 240,
+                    basePrice.prices.pax_4_price || 200,
+                    basePrice.prices.pax_6_price || 180,
+                    basePrice.prices.pax_8_price || 160,
+                  )
+                : 500,
+          },
+        };
+      });
+
+      // Merge with local packages, avoiding duplicates
+      const allPackages = [...safariRoutes.filter((pkg) => !pkg.backendId)];
+      convertedPackages.forEach((backendPkg) => {
+        const exists = allPackages.some(
+          (localPkg) =>
+            localPkg.backendId === backendPkg.backendId ||
+            localPkg.name === backendPkg.name,
+        );
+        if (!exists) {
+          allPackages.push(backendPkg);
+        }
+      });
+
+      setSafariRoutes(allPackages);
+      saveSafariRoutesToStorage(allPackages);
+    } catch (error) {
+      console.error("Error loading packages from backend:", error);
+    }
+  };
+
+  // Check for existing lodge selection from localStorage on component mount
+  useEffect(() => {
+    const checkExistingSelection = () => {
+      try {
+        const bookingData = localStorage.getItem("taitaHillsBooking");
+        if (bookingData) {
+          const parsedData = JSON.parse(bookingData);
+          // Check if the saved booking is for Taita Hills
+          if (
+            parsedData.park &&
+            parsedData.park.name === "Taita Hills Wildlife Sanctuary" &&
+            parsedData.lodge
+          ) {
+            setSelectedLodge(parsedData.lodge);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading lodge selection:", error);
+      }
+    };
+
+    checkExistingSelection();
+  }, []);
 
   const parkInfo = {
     id: 7,
@@ -39,6 +326,52 @@ const Taitahills = () => {
     specialFeature:
       "Home to 13 globally threatened bird species and Africa's most fragmented cloud forests",
   };
+
+  // Taita Hills Lodges
+  const taitaHillsLodges = [
+    {
+      name: "Sarova Taita Hills Game Lodge",
+      image: "/assets/lodge-taita.png",
+      fallbackImage: "/assets/lodges/default-lodge.jpg",
+      description:
+        "Eco-friendly luxury lodge with stunning views of the sanctuary, offering comfort and conservation-focused experiences.",
+      gallery: [
+        "/assets/lodge-taita.png",
+        "/assets/lodge-taita-2.jpg",
+        "/assets/lodge-taita-3.jpg",
+      ],
+      priceRange: "$$$",
+      features: ["Eco-Friendly", "Panoramic Views", "Conservation Focus"],
+    },
+    {
+      name: "Taita Hills Forest Cottages",
+      image: "/assets/forest-cottage.jpg",
+      fallbackImage: "/assets/lodges/default-lodge.jpg",
+      description:
+        "Charming cottages nestled within the cloud forest, offering intimate connection with nature and endemic wildlife.",
+      gallery: [
+        "/assets/forest-cottage.jpg",
+        "/assets/forest-cottage-2.jpg",
+        "/assets/forest-cottage-3.jpg",
+      ],
+      priceRange: "$$",
+      features: ["Forest Setting", "Bird Watching", "Intimate Experience"],
+    },
+    {
+      name: "Mbololo Mountain Retreat",
+      image: "/assets/mountain-retreat.jpg",
+      fallbackImage: "/assets/lodges/default-lodge.jpg",
+      description:
+        "Exclusive retreat at the highest point of Taita Hills with 360-degree views and guided conservation activities.",
+      gallery: [
+        "/assets/mountain-retreat.jpg",
+        "/assets/mountain-retreat-2.jpg",
+        "/assets/mountain-retreat-3.jpg",
+      ],
+      priceRange: "$$$$",
+      features: ["Mountain Views", "Exclusive", "Conservation Activities"],
+    },
+  ];
 
   // Taita Hills Gallery Images
   const galleryImages = [
@@ -116,7 +449,7 @@ const Taitahills = () => {
     },
     {
       id: 10,
-      src: "joz/public/assets/consavation .png",
+      src: "/assets/consavation .png",
       fallback: "/assets/taita-gallery/default-gallery.jpg",
       title: "Conservation Research",
       description: "Scientific research and conservation activities",
@@ -199,35 +532,811 @@ const Taitahills = () => {
     },
   ];
 
-  const safariRoutes = [
-    {
-      id: 1,
-      name: "Taita Hills → Tsavo West → Mzima Springs",
-      description:
-        "Explore the biodiversity hotspot of Taita Hills combined with the volcanic landscapes of Tsavo West.",
-      priceRange: { min: 270, max: 370 },
-      duration: "4-6 days recommended",
-      highlights: ["Endemic Species", "Cloud Forests", "Volcanic Landscapes"],
-    },
-    {
-      id: 2,
-      name: "Taita Hills Birding Special",
-      description:
-        "Focused bird watching tour targeting Taita's endemic and rare bird species with expert guides.",
-      priceRange: { min: 240, max: 340 },
+  // UPDATED: Save package to backend
+  const savePackageToBackend = async (packageData) => {
+    try {
+      setIsLoading(true);
+
+      // Prepare data in EXACT format expected by backend
+      const backendPackage = {
+        name: packageData.name,
+        description: packageData.description,
+        duration: packageData.duration || "3-5 days recommended",
+        itinerary: packageData.itinerary || "",
+        priceOptions: packageData.priceOptions.map((option) => ({
+          people: option.people,
+          price: option.price,
+          currency: option.currency || "usd",
+        })),
+      };
+
+      console.log("📤 Sending to backend:", backendPackage);
+
+      const response = await fetch("http://localhost:5000/api/safari-cards", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(backendPackage),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        Swal.fire({
+          title: "✅ Success!",
+          text: "Safari package saved to database successfully",
+          icon: "success",
+          confirmButtonColor: "#059669",
+        });
+
+        // Return backend ID for tracking
+        return {
+          success: true,
+          data: result,
+          backendId: result.package_id,
+        };
+      } else {
+        throw new Error(result.error || "Failed to save package");
+      }
+    } catch (error) {
+      console.error("❌ Error saving to backend:", error);
+      Swal.fire({
+        title: "Backend Error",
+        text: "Could not save to database. Saved locally instead.",
+        icon: "warning",
+        confirmButtonColor: "#059669",
+      });
+      return { success: false, error: error.message };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // UPDATED: Sync local packages with backend
+  const syncWithBackend = async () => {
+    setIsLoading(true);
+    Swal.fire({
+      title: "Syncing...",
+      text: "Please wait while we sync with the database",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+
+    try {
+      // Get all packages from backend
+      const response = await fetch("http://localhost:5000/api/safari-cards");
+      if (response.ok) {
+        const packagesData = await response.json();
+
+        if (packagesData.success) {
+          // Convert backend packages to frontend format
+          const backendPackages = packagesData.data.map((pkg) => {
+            const hasPrices = pkg.prices && pkg.prices.length > 0;
+            const basePrice = hasPrices ? pkg.prices[0] : null;
+
+            return {
+              id: `backend_${pkg.id}`,
+              backendId: pkg.id,
+              name: pkg.name,
+              description: pkg.description || "",
+              duration: `${pkg.total_days || 5}-${(pkg.total_days || 5) + 2} days recommended`,
+              highlights: pkg.highlights || [],
+              itinerary: pkg.description || "",
+              priceOptions:
+                hasPrices && basePrice.prices
+                  ? [
+                      {
+                        people: 1,
+                        price: basePrice.prices.pax_1_price || 270,
+                        currency: "usd",
+                      },
+                      {
+                        people: 2,
+                        price: basePrice.prices.pax_2_price || 240,
+                        currency: "usd",
+                      },
+                      {
+                        people: 4,
+                        price: basePrice.prices.pax_4_price || 200,
+                        currency: "usd",
+                      },
+                      {
+                        people: 6,
+                        price: basePrice.prices.pax_6_price || 180,
+                        currency: "usd",
+                      },
+                      {
+                        people: 8,
+                        price: basePrice.prices.pax_8_price || 160,
+                        currency: "usd",
+                      },
+                    ]
+                  : defaultSafariRoutes[0].priceOptions,
+              priceRange: {
+                min:
+                  hasPrices && basePrice.prices
+                    ? Math.min(
+                        basePrice.prices.pax_1_price || 270,
+                        basePrice.prices.pax_2_price || 240,
+                        basePrice.prices.pax_4_price || 200,
+                        basePrice.prices.pax_6_price || 180,
+                        basePrice.prices.pax_8_price || 160,
+                      )
+                    : 160,
+                max:
+                  hasPrices && basePrice.prices
+                    ? Math.max(
+                        basePrice.prices.pax_1_price || 270,
+                        basePrice.prices.pax_2_price || 240,
+                        basePrice.prices.pax_4_price || 200,
+                        basePrice.prices.pax_6_price || 180,
+                        basePrice.prices.pax_8_price || 160,
+                      )
+                    : 500,
+              },
+            };
+          });
+
+          // Merge with local packages
+          const localPackages = safariRoutes.filter((pkg) => !pkg.backendId);
+          const allPackages = [...localPackages, ...backendPackages];
+
+          setSafariRoutes(allPackages);
+          saveSafariRoutesToStorage(allPackages);
+
+          setBackendStatus((prev) => ({
+            ...prev,
+            packageCount: backendPackages.length,
+          }));
+
+          Swal.fire({
+            title: "✅ Sync Complete!",
+            text: `Loaded ${backendPackages.length} packages from backend`,
+            icon: "success",
+            confirmButtonColor: "#059669",
+          });
+        }
+      }
+    } catch (error) {
+      Swal.fire({
+        title: "Sync Failed",
+        text: "Could not sync with backend. Please check your connection.",
+        icon: "error",
+        confirmButtonColor: "#059669",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // NEW: Handle admin form changes
+  const handleAdminFormChange = (e) => {
+    const { name, value } = e.target;
+    setAdminForm({
+      ...adminForm,
+      [name]: value,
+    });
+  };
+
+  // NEW: Handle price option changes
+  const handlePriceOptionChange = (index, field, value) => {
+    const updatedPriceOptions = [...adminForm.priceOptions];
+    updatedPriceOptions[index] = {
+      ...updatedPriceOptions[index],
+      [field]:
+        field === "people" || field === "price" ? parseInt(value) : value,
+    };
+
+    setAdminForm({
+      ...adminForm,
+      priceOptions: updatedPriceOptions,
+    });
+  };
+
+  // NEW: Add new price option
+  const addPriceOption = () => {
+    if (adminForm.priceOptions.length >= 8) {
+      Swal.fire({
+        title: "Maximum Reached",
+        text: "You can only add up to 8 price options (1-8 pax).",
+        icon: "warning",
+        confirmButtonColor: "#059669",
+      });
+      return;
+    }
+
+    // Find the next available people count
+    const existingPeople = adminForm.priceOptions.map((opt) => opt.people);
+    let nextPeople = 1;
+    while (existingPeople.includes(nextPeople) && nextPeople <= 8) {
+      nextPeople++;
+    }
+
+    if (nextPeople > 8) {
+      Swal.fire({
+        title: "Maximum Reached",
+        text: "You can only add price options for 1-8 people.",
+        icon: "warning",
+        confirmButtonColor: "#059669",
+      });
+      return;
+    }
+
+    setAdminForm({
+      ...adminForm,
+      priceOptions: [
+        ...adminForm.priceOptions,
+        { people: nextPeople, price: 250, currency: "usd" },
+      ],
+    });
+  };
+
+  // NEW: Remove price option
+  const removePriceOption = (index) => {
+    if (adminForm.priceOptions.length <= 2) {
+      Swal.fire({
+        title: "Minimum Required",
+        text: "You need at least 2 price options.",
+        icon: "warning",
+        confirmButtonColor: "#059669",
+      });
+      return;
+    }
+
+    const updatedPriceOptions = adminForm.priceOptions.filter(
+      (_, i) => i !== index,
+    );
+    setAdminForm({
+      ...adminForm,
+      priceOptions: updatedPriceOptions,
+    });
+  };
+
+  // UPDATED: Submit admin form to create new safari route
+  const handleAdminSubmit = async (e) => {
+    e.preventDefault();
+
+    // Calculate min and max prices from price options
+    const prices = adminForm.priceOptions.map((option) => option.price);
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+
+    // Parse highlights string into array
+    const highlightsArray = adminForm.highlights
+      .split(",")
+      .map((h) => h.trim())
+      .filter((h) => h.length > 0);
+
+    // Create new safari route object
+    const newRoute = {
+      id: Date.now(),
+      name: adminForm.routeName,
+      description: adminForm.description,
+      duration: adminForm.duration,
+      highlights: highlightsArray,
+      itinerary: adminForm.itinerary,
+      priceOptions: adminForm.priceOptions,
+      priceRange: { min: minPrice, max: maxPrice },
+    };
+
+    // Try to save to backend first
+    let backendResult = null;
+    if (backendStatus.connected) {
+      backendResult = await savePackageToBackend(newRoute);
+
+      if (backendResult.success && backendResult.backendId) {
+        newRoute.backendId = backendResult.backendId;
+        newRoute.id = `backend_${backendResult.backendId}`;
+      }
+    }
+
+    // Add to safari routes
+    const updatedRoutes = [...safariRoutes, newRoute];
+    setSafariRoutes(updatedRoutes);
+    saveSafariRoutesToStorage(updatedRoutes);
+
+    // Show success message
+    Swal.fire({
+      title: "✅ Package Created!",
+      html: `
+        <div class="text-left">
+          <p><strong>${newRoute.name}</strong> has been created successfully.</p>
+          <div class="mt-4 p-3 bg-gray-50 rounded">
+            <p class="text-sm"><strong>Status:</strong> ${backendStatus.connected && backendResult?.success ? "Saved to Database ✓" : "Saved Locally Only"}</p>
+            <p class="text-sm"><strong>Price Range:</strong> $${minPrice} - $${maxPrice}</p>
+            <p class="text-sm"><strong>Duration:</strong> ${newRoute.duration}</p>
+          </div>
+        </div>
+      `,
+      icon: "success",
+      confirmButtonColor: "#059669",
+    });
+
+    // Reset form
+    setAdminForm({
+      routeName: "",
+      description: "",
       duration: "3-5 days recommended",
-      highlights: ["Endemic Birds", "Forest Hiking", "Conservation Focus"],
-    },
-    {
-      id: 3,
-      name: "Taita Hills Luxury Conservation Experience",
-      description:
-        "Premium safari combining luxury accommodation with conservation activities and scientific insights.",
-      priceRange: { min: 350, max: 500 },
-      duration: "3-4 days recommended",
-      highlights: ["Luxury Lodges", "Conservation Tours", "Private Guides"],
-    },
-  ];
+      highlights: "",
+      itinerary: "",
+      priceOptions: [
+        { people: 1, price: 270, currency: "usd" },
+        { people: 2, price: 240, currency: "usd" },
+        { people: 3, price: 220, currency: "usd" },
+        { people: 4, price: 200, currency: "usd" },
+        { people: 5, price: 190, currency: "usd" },
+        { people: 6, price: 180, currency: "usd" },
+        { people: 7, price: 170, currency: "usd" },
+        { people: 8, price: 160, currency: "usd" },
+      ],
+    });
+    setShowAdminForm(false);
+  };
+
+  // NEW: Delete safari package - PERMANENTLY
+  const handleDeletePackage = (routeId) => {
+    Swal.fire({
+      title: "Delete Safari Package?",
+      text: "Are you sure you want to permanently delete this safari package? This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#059669",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, delete permanently!",
+      cancelButtonText: "Cancel",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        // Filter out the deleted route
+        const updatedRoutes = safariRoutes.filter(
+          (route) => route.id !== routeId,
+        );
+        setSafariRoutes(updatedRoutes);
+        saveSafariRoutesToStorage(updatedRoutes);
+
+        // If the deleted route was selected, clear the selection
+        if (selectedRoute && selectedRoute.id === routeId) {
+          setSelectedRoute(null);
+        }
+
+        Swal.fire({
+          title: "Deleted Permanently!",
+          text: "The safari package has been permanently deleted and removed from storage.",
+          icon: "success",
+          confirmButtonColor: "#059669",
+        });
+      }
+    });
+  };
+
+  // FIXED: Modified handleRouteSelect to REQUIRE lodge selection
+  const handleRouteSelect = async (route) => {
+    // Check if lodge is selected - this is the CRITICAL FIX
+    if (!selectedLodge) {
+      // Show SweetAlert asking user to select a lodge first
+      const result = await Swal.fire({
+        title: "Lodge Required",
+        html: `
+          <div class="text-left">
+            <p class="mb-4">To book a Taita Hills safari package, you must first select your accommodation.</p>
+            <div class="bg-emerald-50 p-3 rounded-lg mb-4">
+              <p class="font-semibold">Why select a lodge first?</p>
+              <p class="text-sm">Taita Hills safaris include lodge accommodation. Your chosen lodge affects pricing and itinerary planning.</p>
+            </div>
+            <p class="text-sm text-gray-600">You'll select from 3 eco-friendly lodges including Sarova Taita Hills Game Lodge and Forest Cottages.</p>
+          </div>
+        `,
+        icon: "info",
+        showCancelButton: true,
+        confirmButtonColor: "#059669",
+        cancelButtonColor: "#6b7280",
+        confirmButtonText: "Choose Lodge Now",
+        cancelButtonText: "Maybe Later",
+        customClass: {
+          popup: "rounded-lg",
+        },
+      });
+
+      if (result.isConfirmed) {
+        // Open lodge modal to force selection
+        setShowLodgeModal(true);
+      }
+      return; // STOP here - don't proceed with route selection
+    }
+
+    // Only proceed if lodge is selected
+    setSelectedRouteForPricing(route);
+    setShowPriceModal(true);
+  };
+
+  // NEW: Handle final price selection and proceed to booking
+  const handleFinalPriceSelect = (people, price) => {
+    setSelectedRoute(selectedRouteForPricing);
+    setBookingForm({
+      ...bookingForm,
+      travelers: people,
+    });
+    setShowPriceModal(false);
+
+    // Show booking modal directly after price selection
+    setTimeout(() => {
+      setShowBookingModal(true);
+    }, 300);
+  };
+
+  // NEW: Handle lodge selection with SweetAlert
+  const handleLodgeSelection = async (lodge) => {
+    // Show loading spinner
+    Swal.fire({
+      title: "Selecting Lodge...",
+      text: "Please wait while we save your lodge preference.",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+
+    // Simulate async save
+    setTimeout(() => {
+      setSelectedLodge(lodge);
+
+      // Save to localStorage for persistence
+      const bookingData = {
+        park: parkInfo,
+        lodge: lodge,
+        step: "lodge_selected",
+        timestamp: new Date().toISOString(),
+        page: "Taitahills",
+      };
+      try {
+        localStorage.setItem("taitaHillsBooking", JSON.stringify(bookingData));
+      } catch (error) {
+        console.error("Error saving lodge selection:", error);
+      }
+
+      Swal.fire({
+        title: "Lodge Selected!",
+        html: `<strong>${lodge.name}</strong> has been selected for your Taita Hills stay.`,
+        icon: "success",
+        confirmButtonColor: "#059669",
+        confirmButtonText: "Continue",
+      });
+
+      setShowLodgeModal(false);
+    }, 1000);
+  };
+
+  // NEW: Generate itinerary including lodge info
+  const generateItinerary = (days, route) => {
+    const itineraries = [];
+
+    for (let i = 1; i <= days; i++) {
+      if (i === 1) {
+        itineraries.push(
+          `Day ${i}: Arrival at Taita Hills, check-in at ${
+            selectedLodge?.name || "selected lodge"
+          } and afternoon nature walk in the cloud forest`,
+        );
+      } else if (i === days) {
+        itineraries.push(
+          `Day ${i}: Morning bird watching for endemic species, breakfast, and departure from ${route
+            .split("→")
+            .pop()
+            .trim()}`,
+        );
+      } else {
+        const parksInRoute = route.split("→").map((park) => park.trim());
+        const currentParkIndex = Math.min(i - 2, parksInRoute.length - 1);
+        if (parksInRoute[currentParkIndex].includes("Taita")) {
+          itineraries.push(
+            `Day ${i}: Full day exploring Taita Hills with forest hikes, endemic species tracking, and conservation activities. ${
+              selectedLodge ? `Overnight at ${selectedLodge.name}` : ""
+            }`,
+          );
+        } else {
+          itineraries.push(
+            `Day ${i}: Travel to ${parksInRoute[currentParkIndex]} for wildlife viewing and scenic experiences`,
+          );
+        }
+      }
+    }
+    return itineraries;
+  };
+
+  // MODIFIED: calculatePrice to use manual prices
+  const calculatePrice = (travelers, route) => {
+    if (!route || !route.priceOptions) return 0;
+
+    // Find the price option for the selected number of travelers
+    const priceOption = route.priceOptions.find(
+      (option) => option.people === travelers,
+    );
+
+    if (priceOption) {
+      return priceOption.price;
+    }
+
+    // If exact match not found, find the closest option
+    const sortedOptions = [...route.priceOptions].sort(
+      (a, b) => a.people - b.people,
+    );
+
+    // Find the option with people >= travelers
+    const higherOption = sortedOptions.find(
+      (option) => option.people >= travelers,
+    );
+    if (higherOption) return higherOption.price;
+
+    // Otherwise use the highest option
+    return sortedOptions[sortedOptions.length - 1].price;
+  };
+
+  // NEW: Validate booking readiness
+  const validateBookingReadiness = () => {
+    if (!selectedLodge) {
+      Swal.fire({
+        title: "Accommodation Required",
+        text: "Please select a lodge before proceeding with booking.",
+        icon: "warning",
+        confirmButtonColor: "#059669",
+      });
+      return false;
+    }
+    if (!selectedRoute) {
+      Swal.fire({
+        title: "Safari Route Required",
+        text: "Please select a safari route package.",
+        icon: "warning",
+        confirmButtonColor: "#059669",
+      });
+      return false;
+    }
+    return true;
+  };
+
+  const handleBookingConfirm = () => {
+    if (!validateBookingReadiness()) {
+      return;
+    }
+    setShowItineraryModal(false);
+    setShowBookingModal(true);
+  };
+
+  const handleFormChange = (e) => {
+    setBookingForm({
+      ...bookingForm,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  // Function to handle image errors
+  const handleImageError = (e, fallbackImage) => {
+    e.target.onerror = null; // Prevent infinite loop
+    e.target.src = fallbackImage;
+  };
+
+  // Function to open gallery modal
+  const openGalleryModal = (index) => {
+    setActiveGalleryImage(index);
+    setShowGalleryModal(true);
+  };
+
+  // Function to navigate gallery
+  const nextGalleryImage = () => {
+    setActiveGalleryImage((prev) =>
+      prev === galleryImages.length - 1 ? 0 : prev + 1,
+    );
+  };
+
+  const prevGalleryImage = () => {
+    setActiveGalleryImage((prev) =>
+      prev === 0 ? galleryImages.length - 1 : prev - 1,
+    );
+  };
+
+  // Function to send booking to backend
+  const sendBookingToBackend = async (bookingData) => {
+    try {
+      console.log("📤 Sending Taita Hills booking to backend...", bookingData);
+
+      const response = await fetch("http://localhost:5000/api/send-booking", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bookingData),
+      });
+
+      const result = await response.json();
+
+      if (response.status === 400) {
+        console.error("Backend validation error:", result);
+        return { success: false, error: result.error };
+      }
+
+      if (result.success) {
+        Swal.fire({
+          title: "✅ Booking Sent!",
+          text: "Check your email for confirmation.",
+          icon: "success",
+          confirmButtonColor: "#059669",
+        });
+        return { success: true, data: result };
+      } else {
+        console.error("Backend error:", result.error);
+        return { success: false, error: result.error };
+      }
+    } catch (error) {
+      console.error("Error sending to backend:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Function to send direct email (fallback)
+  const sendDirectEmail = (bookingData) => {
+    const emailBody = `
+TAITA HILLS WILDLIFE SANCTUARY BOOKING DETAILS:
+
+📍 SANCTUARY: ${bookingData.park}
+🏨 LODGE: ${bookingData.lodge}
+🚗 ROUTE/ITINERARY: ${bookingData.route}
+📅 DURATION: ${bookingData.days} days
+👥 TRAVELERS: ${bookingData.travelers} pax
+💰 ESTIMATED TOTAL PRICE: $${bookingData.totalPrice}
+📝 ITINERARY TYPE: ${bookingData.route}
+
+🏨 LODGE DETAILS:
+- Name: ${selectedLodge?.name || "Not selected"}
+- Description: ${selectedLodge?.description || "Not available"}
+- Features: ${selectedLodge?.features?.join(", ") || "Not available"}
+
+📋 ITINERARY:
+${bookingData.itinerary.map((day, index) => `${index + 1}. ${day}`).join("\n")}
+
+👤 PERSONAL INFORMATION:
+- Full Name: ${bookingData.fullName}
+- Email: ${bookingData.email}
+- Phone: ${bookingData.phone}
+- Start Date: ${bookingData.startDate || "Flexible"}
+
+💬 ADDITIONAL MESSAGE:
+${bookingData.message || "No additional message"}
+
+🌿 SANCTUARY HIGHLIGHTS:
+${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
+
+🐦 ENDEMIC SPECIES: ${parkInfo.wildlife}
+📏 SIZE: ${parkInfo.size}
+
+📧 This booking was made from the Taita Hills Wildlife Sanctuary page.
+    `.trim();
+
+    window.open(
+      `mailto:tembo4401@gmail.com?subject=Taita Hills Safari Booking: ${
+        bookingData.route
+      } - ${bookingData.fullName}&body=${encodeURIComponent(emailBody)}`,
+    );
+  };
+
+  // Main submit function
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // Validate booking readiness
+    if (!validateBookingReadiness()) {
+      return;
+    }
+
+    setIsLoading(true);
+
+    // Show loading spinner
+    Swal.fire({
+      title: "Processing Booking...",
+      text: "Please wait while we process your booking request.",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+
+    setTimeout(async () => {
+      const totalPrice = calculatePrice(bookingForm.travelers, selectedRoute);
+      const itinerary = generateItinerary(selectedDays, selectedRoute.name);
+
+      // Prepare booking data to match backend's expected fields
+      const bookingData = {
+        // REQUIRED FIELDS by backend:
+        park: parkInfo.name,
+        lodge: selectedLodge.name,
+        days: selectedDays,
+        travelers: bookingForm.travelers,
+        totalPrice: totalPrice,
+        fullName: bookingForm.fullName,
+        email: bookingForm.email,
+        phone: bookingForm.phone,
+
+        // OPTIONAL FIELDS that backend also accepts:
+        startDate: bookingForm.startDate || "Flexible",
+        message: bookingForm.message || "",
+        parkHighlights: parkInfo.highlights.join(", "),
+        bestTime: parkInfo.bestTime,
+        wildlife: parkInfo.wildlife,
+        specialFeature: parkInfo.specialFeature,
+        lodgeDescription: selectedLodge.description,
+        itinerary: itinerary.join("\n"),
+
+        // Additional info for tracking
+        bookingSource: "Taita Hills Sanctuary Page",
+        route: selectedRoute.name,
+        lodgeFeatures: selectedLodge.features?.join(", ") || "",
+      };
+
+      console.log("📝 Taita Hills booking data:", bookingData);
+
+      // Try to send to backend first
+      const result = await sendBookingToBackend(bookingData);
+
+      if (!result.success) {
+        // If backend fails, use direct email fallback
+        console.log("⚠️ Backend failed, using fallback email...");
+        sendDirectEmail({
+          ...bookingData,
+          route: selectedRoute.name,
+        });
+      }
+
+      // Reset form and close modals
+      setShowBookingModal(false);
+      setShowItineraryModal(false);
+      setBookingForm({
+        fullName: "",
+        email: "",
+        phone: "",
+        travelers: 1,
+        message: "",
+        startDate: "",
+      });
+      setIsLoading(false);
+    }, 1500);
+  };
+
+  // NEW: Function to clear lodge selection
+  const handleClearLodgeSelection = () => {
+    Swal.fire({
+      title: "Change Lodge?",
+      text: "Are you sure you want to change your selected lodge?",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#059669",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, Change",
+      cancelButtonText: "Cancel",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        setSelectedLodge(null);
+        // Also remove from localStorage
+        try {
+          localStorage.removeItem("taitaHillsBooking");
+        } catch (error) {
+          console.error("Error removing lodge selection:", error);
+        }
+      }
+    });
+  };
+
+  // Close modals when clicking outside
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      setShowItineraryModal(false);
+      setShowBookingModal(false);
+      setShowGalleryModal(false);
+      setShowLodgeModal(false);
+      setShowPriceModal(false);
+      setShowAdminForm(false);
+    }
+  };
 
   const endemicSpecies = [
     {
@@ -262,293 +1371,6 @@ const Taitahills = () => {
     },
   ];
 
-  const generateItinerary = (days, route) => {
-    const itineraries = [];
-    for (let i = 1; i <= days; i++) {
-      if (i === 1) {
-        itineraries.push(
-          `Day ${i}: Arrival at Taita Hills, check-in at lodge and afternoon nature walk in the cloud forest`
-        );
-      } else if (i === days) {
-        itineraries.push(
-          `Day ${i}: Morning bird watching for endemic species, breakfast, and departure from ${route
-            .split("→")
-            .pop()
-            .trim()}`
-        );
-      } else {
-        const parksInRoute = route.split("→").map((park) => park.trim());
-        const currentParkIndex = Math.min(i - 2, parksInRoute.length - 1);
-        if (parksInRoute[currentParkIndex].includes("Taita")) {
-          itineraries.push(
-            `Day ${i}: Full day exploring Taita Hills with forest hikes, endemic species tracking, and conservation activities`
-          );
-        } else {
-          itineraries.push(
-            `Day ${i}: Full day exploration of ${parksInRoute[currentParkIndex]} with wildlife viewing and scenic experiences`
-          );
-        }
-      }
-    }
-    return itineraries;
-  };
-
-  const calculatePrice = (days, priceRange) => {
-    const avgPrice = (priceRange.min + priceRange.max) / 2;
-    return Math.round(avgPrice * days);
-  };
-
-  const handleRouteSelect = (route) => {
-    setSelectedRoute(route);
-    setShowItineraryModal(true);
-  };
-
-  const handleBookingConfirm = () => {
-    setShowItineraryModal(false);
-    setShowBookingModal(true);
-  };
-
-  const handleFormChange = (e) => {
-    setBookingForm({
-      ...bookingForm,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  // Function to handle image errors
-  const handleImageError = (e, fallbackImage) => {
-    e.target.onerror = null; // Prevent infinite loop
-    e.target.src = fallbackImage;
-  };
-
-  // Function to open gallery modal
-  const openGalleryModal = (index) => {
-    setActiveGalleryImage(index);
-    setShowGalleryModal(true);
-  };
-
-  // Function to navigate gallery
-  const nextGalleryImage = () => {
-    setActiveGalleryImage((prev) =>
-      prev === galleryImages.length - 1 ? 0 : prev + 1
-    );
-  };
-
-  const prevGalleryImage = () => {
-    setActiveGalleryImage((prev) =>
-      prev === 0 ? galleryImages.length - 1 : prev - 1
-    );
-  };
-
-  // Function to send booking to backend
-  const sendBookingToBackend = async (bookingData) => {
-    try {
-      console.log("📤 Sending Taita Hills booking to backend...", bookingData);
-
-      const response = await fetch("http://localhost:5000/api/send-booking", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(bookingData),
-      });
-
-      const result = await response.json();
-
-      if (response.status === 400) {
-        console.error("Backend validation error:", result);
-        return { success: false, error: result.error };
-      }
-
-      if (result.success) {
-        return { success: true, data: result };
-      } else {
-        console.error("Backend error:", result.error);
-        return { success: false, error: result.error };
-      }
-    } catch (error) {
-      console.error("Error sending to backend:", error);
-      return { success: false, error: error.message };
-    }
-  };
-
-  // Function to send direct email (fallback)
-  const sendDirectEmail = (bookingData) => {
-    const emailBody = `
-TAITA HILLS WILDLIFE SANCTUARY BOOKING DETAILS:
-
-📍 SANCTUARY: ${bookingData.park}
-🚗 ROUTE/ITINERARY: ${bookingData.route}
-📅 DURATION: ${bookingData.days} days
-👥 TRAVELERS: ${bookingData.travelers}
-💰 ESTIMATED TOTAL PRICE: $${bookingData.totalPrice}
-📝 ITINERARY TYPE: ${bookingData.route}
-
-📋 ITINERARY:
-${bookingData.itinerary.map((day, index) => `${index + 1}. ${day}`).join("\n")}
-
-👤 PERSONAL INFORMATION:
-- Full Name: ${bookingData.fullName}
-- Email: ${bookingData.email}
-- Phone: ${bookingData.phone}
-- Start Date: ${bookingData.startDate || "Flexible"}
-
-💬 ADDITIONAL MESSAGE:
-${bookingData.message || "No additional message"}
-
-🌿 SANCTUARY HIGHLIGHTS:
-${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
-
-🐦 ENDEMIC SPECIES: ${parkInfo.wildlife}
-📏 SIZE: ${parkInfo.size}
-🎯 SPECIAL FEATURE: ${parkInfo.specialFeature}
-
-📧 This booking was made from the Taita Hills Wildlife Sanctuary page.
-    `.trim();
-
-    window.open(
-      `mailto:tembo4401@gmail.com?subject=Taita Hills Safari Booking: ${
-        bookingData.route
-      } - ${bookingData.fullName}&body=${encodeURIComponent(emailBody)}`
-    );
-  };
-
-  // Main submit function
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!selectedRoute) {
-      Swal.fire({
-        icon: "warning",
-        title: "No Route Selected",
-        text: "Please select a safari route first.",
-        confirmButtonColor: "#059669",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    const totalPrice = calculatePrice(selectedDays, selectedRoute.priceRange);
-    const itinerary = generateItinerary(selectedDays, selectedRoute.name);
-
-    // Prepare booking data to match backend's expected fields
-    const bookingData = {
-      // REQUIRED FIELDS by backend:
-      park: parkInfo.name,
-      lodge: selectedRoute.name, // Backend expects 'lodge', using route name
-      days: selectedDays,
-      travelers: bookingForm.travelers,
-      totalPrice: totalPrice,
-      fullName: bookingForm.fullName,
-      email: bookingForm.email,
-      phone: bookingForm.phone,
-
-      // OPTIONAL FIELDS that backend also accepts:
-      startDate: bookingForm.startDate || "Flexible",
-      message: bookingForm.message || "",
-      parkHighlights: parkInfo.highlights.join(", "),
-      bestTime: parkInfo.bestTime,
-      wildlife: parkInfo.wildlife,
-      specialFeature: parkInfo.specialFeature,
-      parkSize: parkInfo.size,
-      lodgeDescription: selectedRoute.description,
-      itinerary: itinerary.join("\n"),
-
-      // Additional info for tracking
-      bookingSource: "Taita Hills Sanctuary Page",
-      route: selectedRoute.name,
-    };
-
-    console.log("📝 Taita Hills booking data:", bookingData);
-
-    // Try to send to backend first
-    const result = await sendBookingToBackend(bookingData);
-
-    setIsSubmitting(false);
-
-    if (result.success) {
-      // Success SweetAlert
-      await Swal.fire({
-        icon: "success",
-        title: "Booking Request Sent!",
-        html: `
-          <div class="text-left">
-            <p class="mb-2"><strong>✅ Success!</strong></p>
-            <p class="mb-2">Your Taita Hills safari booking request has been submitted.</p>
-            <div class="bg-emerald-50 p-3 rounded-lg my-3">
-              <p class="text-sm"><strong>Route:</strong> ${selectedRoute.name}</p>
-              <p class="text-sm"><strong>Duration:</strong> ${selectedDays} days</p>
-              <p class="text-sm"><strong>Travelers:</strong> ${bookingForm.travelers}</p>
-              <p class="text-sm"><strong>Total:</strong> $${totalPrice}</p>
-            </div>
-            <p class="text-sm text-gray-600">Check your email for confirmation and further details.</p>
-          </div>
-        `,
-        confirmButtonColor: "#059669",
-        confirmButtonText: "Great!",
-      });
-    } else {
-      // If backend fails, ask user if they want to use fallback email
-      const fallbackResult = await Swal.fire({
-        icon: "warning",
-        title: "Connection Issue",
-        html: `
-          <div class="text-left">
-            <p class="mb-2">We're having trouble connecting to our booking system.</p>
-            <p class="mb-4">Would you like to send your booking details via email instead?</p>
-            <div class="bg-emerald-50 p-3 rounded-lg">
-              <p class="text-sm"><strong>Route:</strong> ${selectedRoute.name}</p>
-              <p class="text-sm"><strong>Duration:</strong> ${selectedDays} days</p>
-              <p class="text-sm"><strong>Total Price:</strong> $${totalPrice}</p>
-            </div>
-          </div>
-        `,
-        showCancelButton: true,
-        confirmButtonColor: "#059669",
-        cancelButtonColor: "#6b7280",
-        confirmButtonText: "Yes, send via email",
-        cancelButtonText: "Cancel",
-      });
-
-      if (fallbackResult.isConfirmed) {
-        sendDirectEmail({
-          ...bookingData,
-          route: selectedRoute.name,
-          itinerary: itinerary,
-        });
-
-        await Swal.fire({
-          icon: "info",
-          title: "Email Opened",
-          text: "Please complete your booking by sending the pre-filled email.",
-          confirmButtonColor: "#059669",
-        });
-      }
-    }
-
-    // Reset form and close modals
-    setShowBookingModal(false);
-    setShowItineraryModal(false);
-    setBookingForm({
-      fullName: "",
-      email: "",
-      phone: "",
-      travelers: 1,
-      message: "",
-      startDate: "",
-    });
-  };
-
-  // Close modals when clicking outside
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) {
-      setShowItineraryModal(false);
-      setShowBookingModal(false);
-      setShowGalleryModal(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-amber-50">
       {/* Hero Section */}
@@ -559,24 +1381,40 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           className="w-full h-full object-cover"
           onError={(e) => handleImageError(e, parkInfo.fallbackImage)}
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/70 to-emerald-600/50"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent"></div>
         <div className="absolute bottom-0 left-0 right-0 p-8 text-white">
           <div className="container mx-auto">
             <h1 className="text-5xl font-bold mb-4 font-serif">
               {parkInfo.name}
             </h1>
             <p className="text-xl max-w-2xl">{parkInfo.description}</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="px-3 py-1 bg-emerald-600/80 rounded-full text-sm">
-                🌿 Biodiversity Hotspot
-              </span>
-              <span className="px-3 py-1 bg-emerald-600/80 rounded-full text-sm">
-                🦜 Endemic Species
-              </span>
-              <span className="px-3 py-1 bg-emerald-600/80 rounded-full text-sm">
-                ☁️ Cloud Forests
-              </span>
-            </div>
+
+            {/* Selected Lodge Badge */}
+            {selectedLodge && (
+              <div className="mt-4 inline-flex items-center bg-green-600/80 backdrop-blur-sm text-white px-4 py-2 rounded-lg">
+                <svg
+                  className="w-5 h-5 mr-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                <span className="font-semibold">Lodge Selected:</span>{" "}
+                {selectedLodge.name}
+                <button
+                  onClick={handleClearLodgeSelection}
+                  className="ml-4 text-sm bg-white/20 hover:bg-white/30 px-2 py-1 rounded transition-colors"
+                >
+                  Change
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -598,6 +1436,91 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
               mountain forests in Kenya, hosting critically endangered birds and
               rare plants.
             </p>
+
+            {/* Lodge Selection Section */}
+            <div className="mb-8 bg-white p-6 rounded-xl shadow-lg border border-emerald-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-800">
+                  Your Taita Hills Accommodation
+                </h3>
+                {!selectedLodge ? (
+                  <button
+                    onClick={() => setShowLodgeModal(true)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                  >
+                    Choose Lodge
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowLodgeModal(true)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                    >
+                      View Details
+                    </button>
+                    <button
+                      onClick={handleClearLodgeSelection}
+                      className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                    >
+                      Change
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {selectedLodge ? (
+                <div className="flex items-center gap-4 p-4 bg-emerald-50 rounded-lg">
+                  <img
+                    src={selectedLodge.image}
+                    alt={selectedLodge.name}
+                    className="w-24 h-24 object-cover rounded-lg"
+                    onError={(e) =>
+                      handleImageError(e, selectedLodge.fallbackImage)
+                    }
+                  />
+                  <div>
+                    <h4 className="font-bold text-lg text-gray-800">
+                      {selectedLodge.name}
+                    </h4>
+                    <p className="text-gray-600 text-sm">
+                      {selectedLodge.description.substring(0, 100)}...
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      {selectedLodge.features
+                        ?.slice(0, 2)
+                        .map((feature, idx) => (
+                          <span
+                            key={idx}
+                            className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded"
+                          >
+                            {feature}
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center p-6 bg-emerald-50 rounded-lg border border-emerald-200">
+                  <svg
+                    className="w-12 h-12 text-emerald-500 mx-auto mb-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                    />
+                  </svg>
+                  <p className="text-gray-700 mb-3">No lodge selected yet</p>
+                  <p className="text-gray-600 text-sm">
+                    Choose from 3 eco-friendly lodges for your Taita Hills stay
+                  </p>
+                </div>
+              )}
+            </div>
 
             <div className="space-y-4">
               <div>
@@ -711,7 +1634,46 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           </div>
         </div>
 
-        {/* NEW: Gallery Section */}
+        {/* Lodge Requirement Banner */}
+        {!selectedLodge && (
+          <div className="mb-8 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white p-4 rounded-xl shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 p-2 rounded-lg">
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">
+                    Step 1: Select Your Lodge
+                  </h3>
+                  <p className="text-sm opacity-90">
+                    Choose accommodation before selecting safari packages
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowLodgeModal(true)}
+                className="bg-white text-emerald-600 hover:bg-gray-100 px-4 py-2 rounded-lg font-semibold transition-colors"
+              >
+                Browse Lodges
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Gallery Section */}
         <div className="mb-16">
           <h2 className="text-3xl font-bold text-center text-gray-800 mb-8 font-serif">
             Taita Hills Gallery
@@ -760,7 +1722,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           </div>
         </div>
 
-        {/* NEW: Attractions Section */}
+        {/* Attractions Section */}
         <div className="mb-16">
           <h2 className="text-3xl font-bold text-center text-gray-800 mb-8 font-serif">
             Top Attractions in Taita Hills
@@ -831,6 +1793,300 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           </div>
         </div>
 
+        {/* Safari Routes - WITH PERSISTENCE */}
+        <div className="mb-16">
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h2 className="text-3xl font-bold text-gray-800 font-serif mb-2">
+                Taita Hills Safari Packages
+              </h2>
+              <p className="text-gray-600">
+                {selectedLodge
+                  ? `Packages available with your selected lodge: ${selectedLodge.name}`
+                  : "Select a lodge first to view available packages"}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {backendStatus.connected && (
+                <button
+                  onClick={syncWithBackend}
+                  disabled={isLoading}
+                  className={`${isLoading ? "bg-gray-400" : "bg-green-600 hover:bg-green-700"} text-white px-4 py-2 rounded-lg font-semibold transition-all duration-300`}
+                >
+                  <div className="flex items-center gap-2">
+                    {isLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Syncing...
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                          />
+                        </svg>
+                        Sync with Backend
+                      </>
+                    )}
+                  </div>
+                </button>
+              )}
+              <button
+                onClick={() => setShowAdminForm(true)}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold transition-all duration-300"
+              >
+                <div className="flex items-center gap-2">
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                    />
+                  </svg>
+                  Add New Package
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Storage Info */}
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-3 h-3 rounded-full ${backendStatus.connected ? "bg-green-500" : "bg-red-500"}`}
+                ></div>
+                <div>
+                  <p className="text-sm text-blue-800 font-medium">
+                    {backendStatus.connected
+                      ? "Backend Database Connected"
+                      : "Local Storage Only (Backend Offline)"}
+                  </p>
+                  <p className="text-xs text-blue-600">
+                    {backendStatus.connected
+                      ? `${backendStatus.packageCount} packages in database, ${safariRoutes.length} locally`
+                      : "All data stored locally in browser"}
+                  </p>
+                </div>
+              </div>
+              {backendStatus.connected ? (
+                <div className="text-xs text-green-700 bg-green-100 px-3 py-1 rounded-full">
+                  Database Active
+                </div>
+              ) : (
+                <div className="text-xs text-red-700 bg-red-100 px-3 py-1 rounded-full">
+                  Offline Mode
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Show disabled state if no lodge selected */}
+          {!selectedLodge ? (
+            <div className="bg-gray-50 border border-gray-300 rounded-xl p-8 text-center">
+              <svg
+                className="w-16 h-16 text-gray-400 mx-auto mb-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                />
+              </svg>
+              <h3 className="text-xl font-semibold text-gray-700 mb-3">
+                Lodge Selection Required
+              </h3>
+              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                Please select your Taita Hills accommodation first. Safari
+                packages are tailored to include your chosen lodge stay.
+              </p>
+              <button
+                onClick={() => setShowLodgeModal(true)}
+                className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105"
+              >
+                Select Your Lodge Now
+              </button>
+            </div>
+          ) : safariRoutes.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-xl shadow-lg border border-emerald-200">
+              <svg
+                className="w-16 h-16 text-gray-400 mx-auto mb-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                No Safari Packages Available
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Click "Add New Package" to create your first safari package.
+              </p>
+              <button
+                onClick={() => setShowAdminForm(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+              >
+                Create Your First Package
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {safariRoutes.map((route) => (
+                <div
+                  key={route.id}
+                  className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 border border-emerald-200 relative group"
+                >
+                  {/* Status Badges */}
+                  <div className="absolute top-2 left-2 z-10 flex gap-1">
+                    {route.backendId && (
+                      <span className="bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                        ✓ Database
+                      </span>
+                    )}
+                    <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+                      Local
+                    </span>
+                  </div>
+
+                  {/* Delete Button */}
+                  <button
+                    onClick={() => handleDeletePackage(route.id)}
+                    className="absolute top-4 right-4 bg-emerald-100 hover:bg-emerald-200 text-emerald-600 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"
+                    title="Delete Package Permanently"
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                  </button>
+
+                  <div className="h-48 bg-gradient-to-r from-emerald-500 to-emerald-600 flex items-center justify-center">
+                    <div className="text-white text-center p-4">
+                      <h3 className="text-xl font-bold mb-2">
+                        {route.name.split("→")[0].trim()}
+                      </h3>
+                      <div className="w-12 h-1 bg-white mx-auto mb-2"></div>
+                      <p className="text-emerald-100">Starting Point</p>
+                    </div>
+                  </div>
+                  <div className="p-6">
+                    <h3 className="text-xl font-bold text-gray-800 mb-3">
+                      {route.name}
+                    </h3>
+                    <p className="text-gray-600 mb-4">{route.description}</p>
+
+                    <div className="mb-4">
+                      <h4 className="font-semibold text-gray-700 mb-2">
+                        Highlights:
+                      </h4>
+                      <div className="flex flex-wrap gap-1">
+                        {route.highlights.map((highlight, idx) => (
+                          <span
+                            key={idx}
+                            className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-sm"
+                          >
+                            {highlight}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="mb-4">
+                      <h4 className="font-semibold text-gray-700 mb-2">
+                        Itinerary Preview:
+                      </h4>
+                      <p className="text-gray-600 text-sm">
+                        {route.itinerary.substring(0, 100)}...
+                      </p>
+                    </div>
+
+                    <div className="mb-4">
+                      <h4 className="font-semibold text-gray-700 mb-2">
+                        Price Options (1-8 pax):
+                      </h4>
+                      <div className="space-y-2">
+                        {route.priceOptions.slice(0, 3).map((option, idx) => (
+                          <div
+                            key={idx}
+                            className="flex justify-between text-sm"
+                          >
+                            <span className="text-gray-600">
+                              {option.people} pax:
+                            </span>
+                            <span className="font-semibold text-emerald-600">
+                              ${option.price} per person
+                            </span>
+                          </div>
+                        ))}
+                        {route.priceOptions.length > 3 && (
+                          <div className="text-center">
+                            <button
+                              onClick={() => handleRouteSelect(route)}
+                              className="text-emerald-600 hover:text-emerald-800 text-sm font-medium"
+                            >
+                              View all {route.priceOptions.length} options →
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="text-emerald-600 font-bold">
+                        ${route.priceRange.min} - ${route.priceRange.max}
+                      </div>
+                      <span className="text-sm text-gray-500 bg-emerald-50 px-2 py-1 rounded">
+                        {route.duration}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => handleRouteSelect(route)}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-300"
+                    >
+                      Select Package & Choose Price
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Endemic Species Section */}
         <div className="bg-white rounded-xl shadow-lg p-8 mb-12 border border-emerald-200">
           <h2 className="text-3xl font-bold text-center text-gray-800 mb-6 font-serif">
@@ -878,153 +2134,6 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           </div>
         </div>
 
-        {/* Forest Information */}
-        <div className="bg-white rounded-xl shadow-lg p-8 mb-12 border border-emerald-200">
-          <h2 className="text-3xl font-bold text-center text-gray-800 mb-6 font-serif">
-            Cloud Forest Ecosystems
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-            <div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                Forest Fragments
-              </h3>
-              <p className="text-gray-700 mb-4">
-                The Taita Hills consist of three main forest fragments: Ngangao
-                (120 ha), Chawia (86 ha), and Mbololo (220 ha). These "sky
-                islands" create unique microclimates that support specialized
-                flora and fauna. The forests receive moisture from the Indian
-                Ocean, creating constant mist and cloud cover that sustains the
-                ecosystem.
-              </p>
-              <ul className="space-y-2 text-gray-700">
-                <li className="flex items-center">
-                  <span className="w-2 h-2 bg-emerald-600 rounded-full mr-3"></span>
-                  <strong>Elevation:</strong> 1,400 - 2,200 meters above sea
-                  level
-                </li>
-                <li className="flex items-center">
-                  <span className="w-2 h-2 bg-emerald-600 rounded-full mr-3"></span>
-                  <strong>Rainfall:</strong> 1,200 - 2,000 mm annually
-                </li>
-                <li className="flex items-center">
-                  <span className="w-2 h-2 bg-emerald-600 rounded-full mr-3"></span>
-                  <strong>Temperature:</strong> 15-25°C year-round
-                </li>
-                <li className="flex items-center">
-                  <span className="w-2 h-2 bg-emerald-600 rounded-full mr-3"></span>
-                  <strong>Forest Age:</strong> Over 30 million years old
-                </li>
-              </ul>
-            </div>
-            <div className="bg-emerald-50 p-6 rounded-lg">
-              <h4 className="font-semibold text-gray-800 mb-3">
-                Forest Activities
-              </h4>
-              <div className="space-y-3">
-                <div className="flex items-start">
-                  <div className="bg-emerald-100 p-2 rounded mr-3">
-                    <span className="text-emerald-600 font-bold">🌳</span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-800">
-                      Forest Hiking Trails
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Well-marked trails through ancient forests with guided
-                      interpretation
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start">
-                  <div className="bg-emerald-100 p-2 rounded mr-3">
-                    <span className="text-emerald-600 font-bold">🔭</span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-800">
-                      Bird Watching Platforms
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Strategic viewing points for observing endemic bird
-                      species
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start">
-                  <div className="bg-emerald-100 p-2 rounded mr-3">
-                    <span className="text-emerald-600 font-bold">📚</span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-800">
-                      Conservation Education
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Learn about ongoing research and conservation efforts
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Safari Routes */}
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-center text-gray-800 mb-12 font-serif">
-            Taita Hills Safari Packages
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {safariRoutes.map((route) => (
-              <div
-                key={route.id}
-                className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 cursor-pointer border border-emerald-200"
-                onClick={() => handleRouteSelect(route)}
-              >
-                <div className="h-48 bg-gradient-to-r from-emerald-500 to-emerald-600 flex items-center justify-center">
-                  <div className="text-white text-center p-4">
-                    <h3 className="text-xl font-bold mb-2">
-                      {route.name.split("→")[0].trim()}
-                    </h3>
-                    <div className="w-12 h-1 bg-white mx-auto mb-2"></div>
-                    <p className="text-emerald-100">Starting Point</p>
-                  </div>
-                </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-800 mb-3">
-                    {route.name}
-                  </h3>
-                  <p className="text-gray-600 mb-4">{route.description}</p>
-                  <div className="mb-4">
-                    <h4 className="font-semibold text-gray-700 mb-2">
-                      Highlights:
-                    </h4>
-                    <div className="flex flex-wrap gap-1">
-                      {route.highlights.map((highlight, idx) => (
-                        <span
-                          key={idx}
-                          className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-sm"
-                        >
-                          {highlight}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-emerald-600 font-bold text-lg">
-                      ${route.priceRange.min} - ${route.priceRange.max} / day
-                    </span>
-                    <span className="text-sm text-gray-500 bg-emerald-50 px-2 py-1 rounded">
-                      {route.duration}
-                    </span>
-                  </div>
-                  <button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105">
-                    Select Package
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Additional Information */}
         <div className="bg-white rounded-xl shadow-lg p-8 mb-12 border border-emerald-200">
           <h2 className="text-3xl font-bold text-center text-gray-800 mb-8 font-serif">
@@ -1036,10 +2145,11 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                 <span className="text-emerald-600 font-bold text-xl">1</span>
               </div>
               <h3 className="font-semibold text-gray-800 mb-2">
-                Choose Your Package
+                Choose Your Lodge
               </h3>
               <p className="text-gray-600 text-sm">
-                Select from our curated Taita Hills safari routes and durations.
+                Select from 3 eco-friendly lodges for your Taita Hills
+                accommodation.
               </p>
             </div>
             <div className="text-center">
@@ -1047,11 +2157,10 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                 <span className="text-emerald-600 font-bold text-xl">2</span>
               </div>
               <h3 className="font-semibold text-gray-800 mb-2">
-                Customize Itinerary
+                Select Safari Package
               </h3>
               <p className="text-gray-600 text-sm">
-                Tailor your safari days and conservation activities to your
-                interests.
+                Choose a safari route and customize your itinerary.
               </p>
             </div>
             <div className="text-center">
@@ -1068,6 +2177,552 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           </div>
         </div>
       </div>
+
+      {/* Admin Form Modal */}
+      {showAdminForm && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          onClick={(e) =>
+            e.target === e.currentTarget && setShowAdminForm(false)
+          }
+        >
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Create New Taita Hills Safari Package
+                </h2>
+                <button
+                  onClick={() => setShowAdminForm(false)}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Storage Info in Modal */}
+              <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <svg
+                    className="w-5 h-5 text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <p className="text-sm text-blue-800">
+                    {backendStatus.connected
+                      ? "This package will be saved to both local storage and database."
+                      : "Backend offline. Package will be saved locally only."}
+                  </p>
+                </div>
+              </div>
+
+              {/* Backend Integration Info */}
+              <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h4 className="font-semibold text-yellow-800 mb-2">
+                  Backend Integration Info
+                </h4>
+                <ul className="text-sm text-yellow-700 space-y-1">
+                  <li>• All packages are saved locally in your browser</li>
+                  <li>
+                    • When backend is connected, packages are also saved to
+                    database
+                  </li>
+                  <li>
+                    • Database packages have priority and sync automatically
+                  </li>
+                  <li>
+                    • Backend stores: Package info, itinerary, and price options
+                  </li>
+                </ul>
+              </div>
+
+              <form onSubmit={handleAdminSubmit}>
+                <div className="space-y-4">
+                  {/* Route Name */}
+                  <div>
+                    <label className="block text-gray-700 font-semibold mb-2">
+                      Route Name *
+                    </label>
+                    <input
+                      type="text"
+                      name="routeName"
+                      value={adminForm.routeName}
+                      onChange={handleAdminFormChange}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      placeholder="e.g., Taita Hills → Tsavo West → Mzima Springs"
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="block text-gray-700 font-semibold mb-2">
+                      Description *
+                    </label>
+                    <textarea
+                      name="description"
+                      value={adminForm.description}
+                      onChange={handleAdminFormChange}
+                      required
+                      rows="2"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      placeholder="Describe the Taita Hills safari experience..."
+                    />
+                  </div>
+
+                  {/* Duration */}
+                  <div>
+                    <label className="block text-gray-700 font-semibold mb-2">
+                      Duration *
+                    </label>
+                    <input
+                      type="text"
+                      name="duration"
+                      value={adminForm.duration}
+                      onChange={handleAdminFormChange}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      placeholder="e.g., 3-5 days recommended"
+                    />
+                  </div>
+
+                  {/* Highlights */}
+                  <div>
+                    <label className="block text-gray-700 font-semibold mb-2">
+                      Highlights (comma-separated) *
+                    </label>
+                    <input
+                      type="text"
+                      name="highlights"
+                      value={adminForm.highlights}
+                      onChange={handleAdminFormChange}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      placeholder="e.g., Endemic Species, Cloud Forests, Conservation"
+                    />
+                  </div>
+
+                  {/* Itinerary */}
+                  <div>
+                    <label className="block text-gray-700 font-semibold mb-2">
+                      Itinerary Details *
+                    </label>
+                    <textarea
+                      name="itinerary"
+                      value={adminForm.itinerary}
+                      onChange={handleAdminFormChange}
+                      required
+                      rows="4"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      placeholder="Detailed day-by-day itinerary..."
+                    />
+                  </div>
+
+                  {/* Price Options */}
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <label className="block text-gray-700 font-semibold">
+                        Price Options (1-8 pax, per person) *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={addPriceOption}
+                        disabled={adminForm.priceOptions.length >= 8}
+                        className={`text-sm px-3 py-1 rounded transition-colors ${
+                          adminForm.priceOptions.length >= 8
+                            ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                            : "bg-green-600 hover:bg-green-700 text-white"
+                        }`}
+                      >
+                        Add Price Option
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {adminForm.priceOptions.map((option, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-3 p-3 bg-emerald-50 rounded-lg"
+                        >
+                          <div className="flex-1">
+                            <label className="block text-sm text-gray-700 mb-1">
+                              Pax (1-8)
+                            </label>
+                            <input
+                              type="number"
+                              value={option.people}
+                              onChange={(e) =>
+                                handlePriceOptionChange(
+                                  index,
+                                  "people",
+                                  e.target.value,
+                                )
+                              }
+                              min="1"
+                              max="8"
+                              className="w-full px-3 py-1 border border-gray-300 rounded"
+                              required
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-sm text-gray-700 mb-1">
+                              Price ($)
+                            </label>
+                            <input
+                              type="number"
+                              value={option.price}
+                              onChange={(e) =>
+                                handlePriceOptionChange(
+                                  index,
+                                  "price",
+                                  e.target.value,
+                                )
+                              }
+                              min="1"
+                              className="w-full px-3 py-1 border border-gray-300 rounded"
+                              required
+                            />
+                          </div>
+                          <div className="flex items-end">
+                            <span className="text-gray-600">$ per pax</span>
+                            {adminForm.priceOptions.length > 2 && (
+                              <button
+                                type="button"
+                                onClick={() => removePriceOption(index)}
+                                className="ml-3 text-emerald-600 hover:text-emerald-800"
+                              >
+                                <svg
+                                  className="w-5 h-5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                  />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-sm text-gray-500 mt-2">
+                      * Minimum 2 price options required. You can add up to 8
+                      options (1-8 pax).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 mt-8 pt-6 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminForm(false)}
+                    className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Create Safari Package
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Price Selection Modal for Users */}
+      {showPriceModal && selectedRouteForPricing && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          onClick={(e) =>
+            e.target === e.currentTarget && setShowPriceModal(false)
+          }
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Select Number of Pax (1-8)
+                </h2>
+                <button
+                  onClick={() => setShowPriceModal(false)}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="mb-6">
+                <h3 className="font-semibold text-gray-700 mb-2">
+                  {selectedRouteForPricing.name}
+                </h3>
+                <p className="text-gray-600 text-sm mb-4">
+                  {selectedRouteForPricing.description}
+                </p>
+
+                <div className="space-y-3">
+                  {selectedRouteForPricing.priceOptions.map((option, index) => (
+                    <div
+                      key={index}
+                      className="border-2 border-emerald-100 rounded-lg p-4 hover:border-emerald-300 cursor-pointer transition-colors"
+                      onClick={() =>
+                        handleFinalPriceSelect(option.people, option.price)
+                      }
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h4 className="font-bold text-gray-800">
+                            {option.people}{" "}
+                            {option.people === 1 ? "Pax" : "Pax"}
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            Per person price
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-emerald-600">
+                            ${option.price}
+                          </div>
+                          <p className="text-sm text-gray-500">per pax</p>
+                        </div>
+                      </div>
+                      <button className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg font-semibold transition-colors">
+                        Select This Option
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowPriceModal(false)}
+                className="w-full bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg font-semibold transition-colors"
+              >
+                Back to Packages
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lodge Selection Modal */}
+      {showLodgeModal && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          onClick={handleBackdropClick}
+        >
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Select Your Taita Hills Lodge
+                </h2>
+                <button
+                  onClick={() => setShowLodgeModal(false)}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {selectedLodge && (
+                <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                        <svg
+                          className="w-5 h-5 text-white"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-green-800">
+                          Currently Selected
+                        </p>
+                        <p className="text-green-700">{selectedLodge.name}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleClearLodgeSelection}
+                      className="text-sm text-green-700 hover:text-green-900 font-medium"
+                    >
+                      Change Selection
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-6">
+                {taitaHillsLodges.map((lodge, index) => (
+                  <div
+                    key={index}
+                    className={`border-2 rounded-xl p-6 transition-all duration-300 ${
+                      selectedLodge?.name === lodge.name
+                        ? "border-green-500 bg-green-50"
+                        : "border-gray-200 hover:border-emerald-300"
+                    }`}
+                  >
+                    <div className="flex flex-col md:flex-row gap-6">
+                      <div className="md:w-1/3">
+                        <div className="relative">
+                          <img
+                            src={lodge.image}
+                            alt={lodge.name}
+                            className="w-full h-48 object-cover rounded-lg"
+                            onError={(e) =>
+                              handleImageError(e, lodge.fallbackImage)
+                            }
+                          />
+                          {selectedLodge?.name === lodge.name && (
+                            <div className="absolute top-2 right-2 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-bold">
+                              SELECTED
+                            </div>
+                          )}
+                          <div className="absolute bottom-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-sm">
+                            {lodge.priceRange}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="md:w-2/3">
+                        <div className="flex justify-between items-start mb-3">
+                          <h3 className="text-xl font-bold text-gray-800">
+                            {lodge.name}
+                          </h3>
+                          <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-semibold">
+                            Lodge {index + 1}
+                          </span>
+                        </div>
+                        <p className="text-gray-700 mb-4">
+                          {lodge.description}
+                        </p>
+
+                        <div className="mb-4">
+                          <h4 className="font-semibold text-gray-800 mb-2">
+                            Features:
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {lodge.features.map((feature, idx) => (
+                              <span
+                                key={idx}
+                                className="bg-gray-100 text-gray-700 px-3 py-1 rounded text-sm"
+                              >
+                                {feature}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => handleLodgeSelection(lodge)}
+                            className={`flex-1 py-3 rounded-lg font-semibold transition-all duration-300 ${
+                              selectedLodge?.name === lodge.name
+                                ? "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
+                                : "bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800"
+                            } text-white`}
+                          >
+                            {selectedLodge?.name === lodge.name
+                              ? "✓ Selected"
+                              : "Select This Lodge"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setShowLodgeModal(false)}
+                    className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Back to Sanctuary
+                  </button>
+                  {selectedLodge && (
+                    <button
+                      onClick={() => {
+                        setShowLodgeModal(false);
+                        Swal.fire({
+                          title: "Ready to Book!",
+                          text: `Great! You've selected ${selectedLodge.name}. Now choose a safari package.`,
+                          icon: "success",
+                          confirmButtonColor: "#059669",
+                        });
+                      }}
+                      className="flex-1 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white py-3 rounded-lg font-semibold transition-colors"
+                    >
+                      Continue to Packages
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Gallery Modal */}
       {showGalleryModal && (
@@ -1142,7 +2797,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                 onError={(e) =>
                   handleImageError(
                     e,
-                    galleryImages[activeGalleryImage].fallback
+                    galleryImages[activeGalleryImage].fallback,
                   )
                 }
               />
@@ -1223,6 +2878,33 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                 </button>
               </div>
 
+              {/* Lodge Information */}
+              {selectedLodge && (
+                <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center gap-3">
+                    <svg
+                      className="w-6 h-6 text-green-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                      />
+                    </svg>
+                    <div>
+                      <h4 className="font-semibold text-green-800">
+                        Selected Lodge
+                      </h4>
+                      <p className="text-green-700">{selectedLodge.name}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Days Selection */}
               <div className="mb-6">
                 <label className="block text-gray-700 font-semibold mb-3">
@@ -1262,7 +2944,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                         </div>
                         <p className="text-gray-700">{day}</p>
                       </div>
-                    )
+                    ),
                   )}
                 </div>
               </div>
@@ -1274,12 +2956,12 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                     Estimated Total Price:
                   </span>
                   <span className="text-2xl font-bold text-emerald-600">
-                    ${calculatePrice(selectedDays, selectedRoute.priceRange)}
+                    ${calculatePrice(bookingForm.travelers, selectedRoute)}
                   </span>
                 </div>
                 <p className="text-sm text-gray-600 mt-1">
-                  ({selectedDays} days × ${selectedRoute.priceRange.min}-$
-                  {selectedRoute.priceRange.max}/day per person)
+                  For {bookingForm.travelers} pax × $
+                  {calculatePrice(bookingForm.travelers, selectedRoute)} per pax
                 </p>
               </div>
 
@@ -1375,7 +3057,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
 
                 <div>
                   <label className="block text-gray-700 font-semibold mb-2">
-                    Number of Travelers *
+                    Number of Pax (1-8) *
                   </label>
                   <select
                     name="travelers"
@@ -1385,10 +3067,13 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   >
                     {[1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
                       <option key={num} value={num}>
-                        {num} {num === 1 ? "Traveler" : "Travelers"}
+                        {num} Pax
                       </option>
                     ))}
                   </select>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Select number of people (1-8 pax)
+                  </p>
                 </div>
 
                 <div>
@@ -1428,15 +3113,22 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                     {selectedRoute?.name}
                   </p>
                   <p className="text-sm text-gray-700">
+                    <span className="font-medium">Lodge:</span>{" "}
+                    {selectedLodge?.name || "Not selected"}
+                  </p>
+                  <p className="text-sm text-gray-700">
                     <span className="font-medium">Duration:</span>{" "}
                     {selectedDays} days
                   </p>
                   <p className="text-sm text-gray-700">
-                    <span className="font-medium">Estimated Total Price:</span>{" "}
-                    $
+                    <span className="font-medium">Pax:</span>{" "}
+                    {bookingForm.travelers} pax
+                  </p>
+                  <p className="text-sm text-gray-700">
+                    <span className="font-medium">Total Price:</span> $
                     {calculatePrice(
-                      selectedDays,
-                      selectedRoute?.priceRange || { min: 0, max: 0 }
+                      bookingForm.travelers,
+                      selectedRoute || { priceOptions: [] },
                     )}
                   </p>
                   <p className="text-xs text-gray-600 mt-2">
@@ -1447,31 +3139,16 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
 
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white py-3 px-6 rounded-lg font-semibold text-lg transition-all duration-300 transform hover:scale-105 disabled:transform-none mt-6 flex items-center justify-center gap-2 disabled:cursor-not-allowed"
+                disabled={isLoading}
+                className={`w-full ${
+                  isLoading
+                    ? "bg-gray-500"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                } text-white py-3 px-6 rounded-lg font-semibold text-lg transition-all duration-300 transform hover:scale-105 mt-6 flex items-center justify-center gap-2`}
               >
-                {isSubmitting ? (
+                {isLoading ? (
                   <>
-                    <svg
-                      className="animate-spin h-5 w-5 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     Processing...
                   </>
                 ) : (

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import Swal from "sweetalert2";
 
 export default function Home() {
   const [selectedPark, setSelectedPark] = useState(null);
+  const [selectedLodge, setSelectedLodge] = useState(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [showLodgeModal, setShowLodgeModal] = useState(false);
   const [showParkModal, setShowParkModal] = useState(false);
@@ -152,7 +154,7 @@ export default function Home() {
     }
   };
 
-  // Parks data with LOCAL IMAGES
+  // Updated Parks data with ALL lodges
   const parks = [
     {
       id: 1,
@@ -211,6 +213,54 @@ export default function Home() {
             "/assets/maara-serena4.png",
           ],
         },
+        {
+          name: "La Maison Mara",
+          image: "/assets/lamaison-mara.jpg",
+          fallbackImage: "/assets/lodges/default-lodge.jpg",
+          description:
+            "Boutique luxury camp offering French-inspired elegance and exceptional wildlife viewing opportunities.",
+          gallery: [
+            "/assets/lamaison-mara1.jpg",
+            "/assets/lamaison-mara2.jpg",
+            "/assets/lamaison-mara3.jpg",
+          ],
+        },
+        {
+          name: "Mara Sopa Lodge",
+          image: "/assets/marasopa.jpg",
+          fallbackImage: "/assets/lodges/default-lodge.jpg",
+          description:
+            "Traditional African-style lodge offering comfortable accommodations and excellent game viewing facilities.",
+          gallery: [
+            "/assets/marasopa1.jpg",
+            "/assets/marasopa2.jpg",
+            "/assets/marasopa3.jpg",
+          ],
+        },
+        {
+          name: "Sarova Mara Game Camp",
+          image: "/assets/sarovamara.jpg",
+          fallbackImage: "/assets/lodges/default-lodge.jpg",
+          description:
+            "Premium tented camp with luxurious amenities, swimming pool, and exceptional dining experiences.",
+          gallery: [
+            "/assets/sarovamara1.jpg",
+            "/assets/sarovamara2.jpg",
+            "/assets/sarovamara3.jpg",
+          ],
+        },
+        {
+          name: "Elengata Camp",
+          image: "/assets/elengata.jpg",
+          fallbackImage: "/assets/lodges/default-lodge.jpg",
+          description:
+            "Eco-friendly camp offering authentic Maasai cultural experiences and close wildlife encounters.",
+          gallery: [
+            "/assets/elengata1.jpg",
+            "/assets/elengata2.jpg",
+            "/assets/elengata3.jpg",
+          ],
+        },
       ],
     },
     {
@@ -234,6 +284,18 @@ export default function Home() {
         "Baboon Cliff",
       ],
       lodges: [
+        {
+          name: "Lake Elementaita Lodge",
+          image: "/assets/elementaita.jpg",
+          fallbackImage: "/assets/lodges/default-lodge.jpg",
+          description:
+            "Scenic lodge overlooking Lake Elementaita with stunning views, luxury accommodations, and spa facilities.",
+          gallery: [
+            "/assets/elementaita1.jpg",
+            "/assets/elementaita2.jpg",
+            "/assets/elementaita3.jpg",
+          ],
+        },
         {
           name: "Lake Nakuru Lodge",
           image: "/assets/lake-nakurulodge.png",
@@ -295,6 +357,42 @@ export default function Home() {
             "/assets/voiwildlife5.png",
           ],
         },
+        {
+          name: "Manyatta Camp",
+          image: "/assets/manyatta.jpg",
+          fallbackImage: "/assets/lodges/default-lodge.jpg",
+          description:
+            "Traditional-style camp offering authentic safari experiences with comfortable tented accommodations.",
+          gallery: [
+            "/assets/manyatta1.jpg",
+            "/assets/manyatta2.jpg",
+            "/assets/manyatta3.jpg",
+          ],
+        },
+        {
+          name: "Ashnill Aruba Lodge",
+          image: "/assets/ashnillaruba.jpg",
+          fallbackImage: "/assets/lodges/default-lodge.jpg",
+          description:
+            "Modern lodge with excellent facilities, swimming pool, and prime location for wildlife photography.",
+          gallery: [
+            "/assets/ashnillaruba1.jpg",
+            "/assets/ashnillaruba2.jpg",
+            "/assets/ashnillaruba3.jpg",
+          ],
+        },
+        {
+          name: "Maneaters Lodge",
+          image: "/assets/maneaters.jpg",
+          fallbackImage: "/assets/lodges/default-lodge.jpg",
+          description:
+            "Historical lodge named after the famous Tsavo man-eating lions, offering comfortable accommodations and rich history.",
+          gallery: [
+            "/assets/maneaters1.jpg",
+            "/assets/maneaters2.jpg",
+            "/assets/maneaters3.jpg",
+          ],
+        },
       ],
     },
     {
@@ -342,6 +440,18 @@ export default function Home() {
             "/assets/kilaguni3.png",
           ],
         },
+        {
+          name: "Severin Safari Camp",
+          image: "/assets/severin.jpg",
+          fallbackImage: "/assets/lodges/default-lodge.jpg",
+          description:
+            "Luxury tented camp with a unique blend of African and Arabic architecture, offering exceptional service and comfort.",
+          gallery: [
+            "/assets/severin1.jpg",
+            "/assets/severin2.jpg",
+            "/assets/severin3.jpg",
+          ],
+        },
       ],
     },
     {
@@ -366,6 +476,18 @@ export default function Home() {
       ],
       lodges: [
         {
+          name: "Penety House",
+          image: "/assets/penety-Ambo.png",
+          fallbackImage: "/assets/lodges/default-lodge.jpg",
+          description:
+            "Intimate lodge offering personalized service with excellent views of Mount Kilimanjaro and guided nature walks.",
+          gallery: [
+            "/assets/penety-Ambo1.png",
+            "/assets/penety-Ambo2.png",
+            "/assets/penety-Ambo3.png",
+          ],
+        },
+        {
           name: "Hunters Manor",
           image: "/assets/huntusr-amboli.png",
           fallbackImage: "/assets/lodges/default-lodge.jpg",
@@ -378,15 +500,51 @@ export default function Home() {
           ],
         },
         {
-          name: "Penety House",
-          image: "/assets/penety-Ambo.png",
+          name: "Sentrim Amboseli Lodge",
+          image: "/assets/sentrim.jpg",
           fallbackImage: "/assets/lodges/default-lodge.jpg",
           description:
-            "Intimate lodge offering personalized service with excellent views of Mount Kilimanjaro and guided nature walks.",
+            "Comfortable lodge with traditional African decor, offering great value and excellent Kilimanjaro views.",
           gallery: [
-            "/assets/penety-Ambo1.png",
-            "/assets/penety-Ambo2.png",
-            "/assets/penety-Ambo3.png",
+            "/assets/sentrim1.jpg",
+            "/assets/sentrim2.jpg",
+            "/assets/sentrim3.jpg",
+          ],
+        },
+        {
+          name: "AA Lodge Amboseli",
+          image: "/assets/AA-ambo.png",
+          fallbackImage: "/assets/lodges/default-lodge.jpg",
+          description:
+            "Comfortable family lodge with excellent facilities, perfect for both first-time and experienced safari-goers.",
+          gallery: [
+            "/assets/AA-ambo1.png",
+            "/assets/AA-ambo2.png",
+            "/assets/AA-ambo3.png",
+          ],
+        },
+        {
+          name: "Amboseli Serena Safari Lodge",
+          image: "/assets/amboserena.jpg",
+          fallbackImage: "/assets/lodges/default-lodge.jpg",
+          description:
+            "Award-winning lodge with Maasai-inspired design, offering luxury accommodations and exceptional wildlife viewing.",
+          gallery: [
+            "/assets/amboserena1.jpg",
+            "/assets/amboserena2.jpg",
+            "/assets/amboserena3.jpg",
+          ],
+        },
+        {
+          name: "Amboseli Sopa Lodge",
+          image: "/assets/amboseli-sopa.jpg",
+          fallbackImage: "/assets/lodges/default-lodge.jpg",
+          description:
+            "Spacious lodge set in extensive grounds with traditional African architecture and excellent amenities.",
+          gallery: [
+            "/assets/amboseli-sopa1.jpg",
+            "/assets/amboseli-sopa2.jpg",
+            "/assets/amboseli-sopa3.jpg",
           ],
         },
         {
@@ -402,15 +560,15 @@ export default function Home() {
           ],
         },
         {
-          name: "AA Lodge Amboseli",
-          image: "/assets/AA-ambo.png",
+          name: "Kibo Safari Camp",
+          image: "/assets/kibo.jpg",
           fallbackImage: "/assets/lodges/default-lodge.jpg",
           description:
-            "Comfortable family lodge with excellent facilities, perfect for both first-time and experienced safari-goers.",
+            "Classic tented camp offering direct views of Mount Kilimanjaro and comfortable accommodations in a natural setting.",
           gallery: [
-            "/assets/AA-ambo1.png",
-            "/assets/AA-ambo2.png",
-            "/assets/AA-ambo3.png",
+            "/assets/kibo1.jpg",
+            "/assets/kibo2.jpg",
+            "/assets/kibo3.jpg",
           ],
         },
       ],
@@ -491,6 +649,7 @@ export default function Home() {
   // Park functions
   const handleParkClick = (park) => {
     setSelectedPark(park);
+    setSelectedLodge(null);
     setShowLodgeModal(true);
   };
 
@@ -499,33 +658,88 @@ export default function Home() {
     setShowParkModal(true);
   };
 
-  const handleExplorePark = (parkPath) => {
+  // UPDATED: Navigate to the park page (e.g., /masaimara, /lakenakuru, etc.)
+  const handleExplorePark = async (parkPath) => {
+    if (!selectedPark || !selectedLodge) {
+      // Show SweetAlert to select a lodge first
+      await Swal.fire({
+        title: "Select a Lodge First",
+        text: "Please select a lodge before exploring the park details.",
+        icon: "info",
+        showCancelButton: true,
+        confirmButtonColor: "#f59e0b",
+        cancelButtonColor: "#6b7280",
+        confirmButtonText: "Choose Lodge",
+        cancelButtonText: "Cancel",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setShowLodgeModal(true);
+        }
+      });
+      return;
+    }
+
+    // Save to localStorage
+    const bookingData = {
+      park: selectedPark,
+      lodge: selectedLodge,
+      step: "lodge_selected",
+      timestamp: new Date().toISOString(),
+    };
+    localStorage.setItem("safariBooking", JSON.stringify(bookingData));
+
+    // Navigate to the park page (e.g., /masaimara, /lakenakuru, etc.)
     navigate(parkPath);
   };
 
-  const handleSelectLodge = (lodge) => {
-    const bookingData = {
-      park: selectedPark,
-      lodge: lodge,
-      step: "lodge_selected",
-    };
-    localStorage.setItem("safariBooking", JSON.stringify(bookingData));
-    navigate(
-      `/safaris?park=${selectedPark.slug}&lodge=${lodge.name
-        .toLowerCase()
-        .replace(/\s+/g, "-")}`
-    );
-    setShowLodgeModal(false);
+  // UPDATED: Handle lodge selection and navigate to park page
+  const handleSelectLodge = async (lodge) => {
+    setSelectedLodge(lodge);
+
+    // Show loading spinner
+    Swal.fire({
+      title: "Saving Your Selection...",
+      text: "Please wait while we save your lodge preference.",
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+
+    // Simulate async save
+    setTimeout(() => {
+      const bookingData = {
+        park: selectedPark,
+        lodge: lodge,
+        step: "lodge_selected",
+        timestamp: new Date().toISOString(),
+      };
+      localStorage.setItem("safariBooking", JSON.stringify(bookingData));
+
+      Swal.fire({
+        title: "Lodge Selected!",
+        text: `${lodge.name} has been selected for your ${selectedPark.name} safari.`,
+        icon: "success",
+        confirmButtonColor: "#f59e0b",
+        confirmButtonText: "Explore Park",
+      }).then(() => {
+        // Navigate to the park page (e.g., /masaimara)
+        navigate(selectedPark.path);
+        setShowLodgeModal(false);
+      });
+    }, 1000);
   };
 
   const closeModal = () => {
     setShowLodgeModal(false);
     setSelectedPark(null);
+    setSelectedLodge(null);
   };
 
   const closeParkModal = () => {
     setShowParkModal(false);
     setSelectedPark(null);
+    setSelectedLodge(null);
   };
 
   // Gallery functions
@@ -554,9 +768,35 @@ export default function Home() {
     setSelectedGalleryLodgeName("");
   };
 
-  const sendLodgeInquiry = (lodge) => {
-    const subject = `Inquiry about ${lodge.name} in ${selectedPark.name}`;
-    const body = `Dear Joztembo Tours,
+  // Updated sendLodgeInquiry with SweetAlert
+  const sendLodgeInquiry = async (lodge) => {
+    // Check if lodge is selected
+    if (!lodge) {
+      await Swal.fire({
+        title: "No Lodge Selected",
+        text: "Please select a lodge first before sending an inquiry.",
+        icon: "warning",
+        confirmButtonColor: "#f59e0b",
+        confirmButtonText: "OK",
+      });
+      return;
+    }
+
+    // Show confirmation dialog
+    const result = await Swal.fire({
+      title: "Send Email Inquiry?",
+      html: `Are you sure you want to send an inquiry about <strong>${lodge.name}</strong> in <strong>${selectedPark.name}</strong>?`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#f59e0b",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, Send Email",
+      cancelButtonText: "Cancel",
+    });
+
+    if (result.isConfirmed) {
+      const subject = `Inquiry about ${lodge.name} in ${selectedPark.name}`;
+      const body = `Dear Joztembo Tours,
 
 I am interested in ${lodge.name} located in ${selectedPark.name}.
 
@@ -569,16 +809,35 @@ Lodge Details:
 - Lodge Name: ${lodge.name}
 - Description: ${lodge.description}
 
-Please send me more information about availability, pricing, and booking options.
+Please send me more information about availability, pricing, and booking options for this lodge.
 
 Thank you,
 [Your Name]`;
 
-    window.open(
-      `mailto:tembo4401@gmail.com?subject=${encodeURIComponent(
-        subject
-      )}&body=${encodeURIComponent(body)}`
-    );
+      window.open(
+        `mailto:tembo4401@gmail.com?subject=${encodeURIComponent(
+          subject
+        )}&body=${encodeURIComponent(body)}`
+      );
+
+      // Show success message
+      Swal.fire({
+        title: "Email Ready!",
+        text: "Your email client should open with a pre-filled inquiry. If not, please email tembo4401@gmail.com",
+        icon: "success",
+        confirmButtonColor: "#f59e0b",
+      });
+    }
+  };
+
+  // Function to check if lodge is selected for this park
+  const isLodgeSelectedForPark = () => {
+    const bookingData = localStorage.getItem("safariBooking");
+    if (bookingData) {
+      const parsedData = JSON.parse(bookingData);
+      return parsedData.park && parsedData.park.id === selectedPark?.id;
+    }
+    return false;
   };
 
   // Helper function to handle image errors
@@ -831,9 +1090,32 @@ Thank you,
                     View Details
                   </button>
                   <button
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.stopPropagation();
-                      handleExplorePark(park.path);
+                      setSelectedPark(park);
+
+                      // Check if a lodge is already selected for this park
+                      if (isLodgeSelectedForPark()) {
+                        const result = await Swal.fire({
+                          title: "Lodge Already Selected",
+                          text: "You have already selected a lodge for this park. Would you like to choose a different one?",
+                          icon: "question",
+                          showCancelButton: true,
+                          confirmButtonColor: "#f59e0b",
+                          cancelButtonColor: "#6b7280",
+                          confirmButtonText: "Choose Different Lodge",
+                          cancelButtonText: "Continue with Selected",
+                        });
+
+                        if (result.isConfirmed) {
+                          setShowLodgeModal(true);
+                        } else {
+                          handleExplorePark(park.path);
+                        }
+                      } else {
+                        // Show lodge selection modal
+                        setShowLodgeModal(true);
+                      }
                     }}
                     className="flex-1 bg-gradient-to-r from-gray-800 to-black hover:from-black hover:to-gray-900 text-white py-3 rounded-xl font-semibold transition-all duration-300 hover:shadow-lg transform hover:-translate-y-0.5"
                   >
@@ -924,11 +1206,40 @@ Thank you,
                 <p className="text-amber-200 text-xl">
                   Select your perfect accommodation
                 </p>
+                {selectedLodge && (
+                  <div className="mt-2 bg-green-500/80 text-white px-4 py-2 rounded-lg inline-block">
+                    <span className="font-bold">Selected:</span>{" "}
+                    {selectedLodge.name}
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Modal Content - Enhanced with Gallery */}
             <div className="p-8">
+              {/* Selected Lodge Banner */}
+              {selectedLodge && (
+                <div className="mb-8 p-6 bg-gradient-to-r from-green-50 to-emerald-100 rounded-2xl border border-green-300">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold text-green-800">
+                        ✅ Lodge Selected
+                      </h3>
+                      <p className="text-green-700">
+                        You have selected <strong>{selectedLodge.name}</strong>{" "}
+                        for your {selectedPark.name} safari.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedLodge(null)}
+                      className="text-green-700 hover:text-green-900 font-medium"
+                    >
+                      Change Selection
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Lodges Section */}
               <div>
                 <div className="flex items-center gap-3 mb-8">
@@ -942,18 +1253,29 @@ Thank you,
                   {selectedPark.lodges.map((lodge, index) => (
                     <div
                       key={index}
-                      className="border-2 border-amber-100 rounded-2xl p-8 bg-gradient-to-br from-white to-amber-50 shadow-xl hover:shadow-2xl transition-all duration-300 hover:border-amber-300"
+                      className={`border-2 rounded-2xl p-8 bg-gradient-to-br from-white to-amber-50 shadow-xl hover:shadow-2xl transition-all duration-300 ${
+                        selectedLodge?.name === lodge.name
+                          ? "border-green-500 border-4"
+                          : "border-amber-100 hover:border-amber-300"
+                      }`}
                     >
                       <div className="flex flex-col lg:flex-row gap-8">
                         <div className="lg:w-2/5">
-                          <img
-                            src={lodge.image}
-                            alt={lodge.name}
-                            className="w-full h-64 object-cover rounded-xl mb-4 shadow-lg"
-                            onError={(e) =>
-                              handleImageError(e, lodge.fallbackImage)
-                            }
-                          />
+                          <div className="relative">
+                            <img
+                              src={lodge.image}
+                              alt={lodge.name}
+                              className="w-full h-64 object-cover rounded-xl mb-4 shadow-lg"
+                              onError={(e) =>
+                                handleImageError(e, lodge.fallbackImage)
+                              }
+                            />
+                            {selectedLodge?.name === lodge.name && (
+                              <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full font-bold">
+                                SELECTED
+                              </div>
+                            )}
+                          </div>
 
                           {/* GALLERY SECTION - ADDED HERE */}
                           {lodge.gallery && lodge.gallery.length > 0 && (
@@ -1055,9 +1377,15 @@ Thank you,
                           <div className="flex flex-col sm:flex-row gap-4">
                             <button
                               onClick={() => handleSelectLodge(lodge)}
-                              className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white px-8 py-4 rounded-xl font-bold text-lg transition-all duration-300 hover:shadow-xl transform hover:-translate-y-1"
+                              className={`flex-1 px-8 py-4 rounded-xl font-bold text-lg transition-all duration-300 hover:shadow-xl transform hover:-translate-y-1 ${
+                                selectedLodge?.name === lodge.name
+                                  ? "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
+                                  : "bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800"
+                              } text-white`}
                             >
-                              Select This Lodge
+                              {selectedLodge?.name === lodge.name
+                                ? "✓ Selected - Explore Park"
+                                : "Select This Lodge"}
                             </button>
 
                             <button
@@ -1098,9 +1426,12 @@ Thank you,
                   </button>
                   <button
                     onClick={() => handleExplorePark(selectedPark.path)}
-                    className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white py-4 px-8 rounded-xl font-bold text-lg transition-all duration-300 hover:shadow-xl"
+                    className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white py-4 px-8 rounded-xl font-bold text-lg transition-all duration-300 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!selectedLodge}
                   >
-                    Explore {selectedPark.name} Details
+                    {selectedLodge
+                      ? `Explore ${selectedPark.name} with ${selectedLodge.name}`
+                      : `Select a Lodge to Explore ${selectedPark.name}`}
                   </button>
                 </div>
               </div>
@@ -1143,6 +1474,12 @@ Thank you,
                 <p className="text-amber-200 text-xl">
                   {selectedPark.description}
                 </p>
+                {selectedLodge && (
+                  <div className="mt-2 bg-green-500/80 text-white px-4 py-2 rounded-lg inline-block">
+                    <span className="font-bold">Selected Lodge:</span>{" "}
+                    {selectedLodge.name}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1272,7 +1609,11 @@ Thank you,
                     {selectedPark.lodges.slice(0, 2).map((lodge, index) => (
                       <div
                         key={index}
-                        className="border border-amber-200 rounded-2xl p-6 bg-gradient-to-r from-white to-amber-50 hover:from-amber-50 hover:to-white transition-all duration-300 hover:shadow-lg"
+                        className={`border rounded-2xl p-6 bg-gradient-to-r from-white to-amber-50 hover:from-amber-50 hover:to-white transition-all duration-300 hover:shadow-lg ${
+                          selectedLodge?.name === lodge.name
+                            ? "border-green-500 border-2"
+                            : "border-amber-200"
+                        }`}
                       >
                         <div className="flex items-center gap-6">
                           <img
@@ -1288,13 +1629,31 @@ Thank you,
                               <h4 className="text-xl font-bold text-gray-900">
                                 {lodge.name}
                               </h4>
-                              <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-semibold">
-                                Premium
+                              <span
+                                className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                                  selectedLodge?.name === lodge.name
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-amber-100 text-amber-800"
+                                }`}
+                              >
+                                {selectedLodge?.name === lodge.name
+                                  ? "Selected"
+                                  : "Premium"}
                               </span>
                             </div>
                             <p className="text-gray-700">
                               {lodge.description.substring(0, 120)}...
                             </p>
+                            {selectedLodge?.name === lodge.name && (
+                              <button
+                                onClick={() =>
+                                  handleExplorePark(selectedPark.path)
+                                }
+                                className="mt-3 bg-gradient-to-r from-amber-600 to-amber-700 text-white px-4 py-2 rounded-lg font-medium"
+                              >
+                                Explore Park with this Lodge →
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1320,10 +1679,18 @@ Thank you,
                   Back to Parks
                 </button>
                 <button
-                  onClick={() => setShowLodgeModal(true)}
+                  onClick={() => {
+                    if (selectedLodge) {
+                      handleExplorePark(selectedPark.path);
+                    } else {
+                      setShowLodgeModal(true);
+                    }
+                  }}
                   className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white py-4 px-8 rounded-xl font-bold text-lg transition-all duration-300 hover:shadow-xl"
                 >
-                  View All Lodges
+                  {selectedLodge
+                    ? "Explore Park with Selected Lodge"
+                    : "Select a Lodge First"}
                 </button>
                 <button
                   onClick={() => handleExplorePark(selectedPark.path)}
