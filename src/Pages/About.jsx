@@ -17,6 +17,81 @@ const About = () => {
     },
   };
 
+  // Partnership data - EDIT YOUR IMAGES AND LINKS HERE
+  const partners = [
+    {
+      id: 1,
+      name: "Cimo Services",
+      imageUrl: "/assets/cimo-service.png", // Update with your image path
+      story:
+        "Since 2010, Cimo Services has been our trusted transportation partner, providing reliable and comfortable vehicles for all our safari adventures across Kenya.",
+      link: "https://cimoservices.co.ke", // Update with actual URL
+    },
+    {
+      id: 2,
+      name: "Kenya Safari Lodges",
+      imageUrl: "/assets/kenya-safari-lodges.png", // Update with your image path
+      story:
+        "Our partnership with Kenya Safari Lodges ensures our guests experience the finest accommodations in the most breathtaking locations throughout the country.",
+      link: "https://kenyasafarilodges.com", // Update with actual URL
+    },
+    {
+      id: 3,
+      name: "Ashnil",
+      imageUrl: "/assets/ashnil.png", // Update with your image path
+      story:
+        "Ashnil's luxurious camps offer unparalleled wildlife viewing experiences, making every safari a memorable journey into the wild.",
+      link: "https://ashnilhotels.com", // Update with actual URL
+    },
+    {
+      id: 4,
+      name: "Salt Lick",
+      imageUrl: "/assets/salt-lick.png", // Update with your image path
+      story:
+        "The iconic Salt Lick Lodge provides a unique vantage point for wildlife viewing, and our collaboration brings exclusive packages to our clients.",
+      link: "https://saltlick.co.ke", // Update with actual URL
+    },
+    {
+      id: 5,
+      name: "KWS",
+      imageUrl: "/assets/kws.png", // Update with your image path
+      story:
+        "Working hand in hand with Kenya Wildlife Service, we support conservation efforts while providing ethical and responsible safari experiences.",
+      link: "https://kws.go.ke", // Update with actual URL
+    },
+    {
+      id: 6,
+      name: "Sarova",
+      imageUrl: "/assets/sarova.png", // Update with your image path
+      story:
+        "Sarova Hotels and Lodges bring comfort and elegance to the wilderness, and our partnership ensures premium stays for our safari guests.",
+      link: "https://sarovahotels.com", // Update with actual URL
+    },
+    {
+      id: 7,
+      name: "Tulia",
+      imageUrl: "/assets/tulia.png", // Update with your image path
+      story:
+        "Tulia's boutique safari experiences complement our bespoke tour packages, creating unforgettable journeys for discerning travelers.",
+      link: "https://tulia.com", // Update with actual URL
+    },
+    {
+      id: 8,
+      name: "Turtle Bay",
+      imageUrl: "/assets/turtle-bay.png", // Update with your image path
+      story:
+        "Our collaboration with Turtle Bay Beach Resort offers guests the perfect coastal retreat after their safari adventure.",
+      link: "https://turtlebay.co.ke", // Update with actual URL
+    },
+  ];
+
+  // Handle follow-up button click - opens link in new tab
+  const handleFollowUp = (link) => {
+    if (link && link.trim() !== "") {
+      window.open(link, "_blank", "noopener,noreferrer");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 to-amber-100">
       {/* Header Section */}
@@ -220,6 +295,74 @@ const About = () => {
           </motion.div>
         </motion.section>
 
+        {/* ========== PARTNERSHIP SECTION ========== */}
+        <motion.section
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="mb-16"
+        >
+          <motion.div variants={fadeInUp} className="text-center mb-10">
+            <h2 className="text-4xl font-bold text-amber-900 mb-3">
+              Our Trusted Partners
+            </h2>
+            <div className="w-24 h-1 bg-amber-500 mx-auto rounded-full mb-4"></div>
+            <p className="text-gray-600 max-w-2xl mx-auto">
+              We proudly collaborate with these esteemed organizations to
+              deliver exceptional safari experiences across Kenya.
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {partners.map((partner, index) => (
+              <motion.div
+                key={partner.id}
+                variants={fadeInUp}
+                initial="initial"
+                whileInView="animate"
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.05 }}
+                whileHover={{ y: -5 }}
+                className="bg-white rounded-xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl flex flex-col"
+              >
+                {/* Image area */}
+                <div className="h-40 bg-amber-100 relative overflow-hidden">
+                  <img
+                    src={partner.imageUrl}
+                    alt={partner.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src =
+                        "https://via.placeholder.com/400x200?text=Image+Coming+Soon";
+                    }}
+                  />
+                </div>
+
+                {/* Content area */}
+                <div className="p-4 flex flex-col flex-grow">
+                  <h3 className="text-lg font-bold text-amber-900 mb-2">
+                    {partner.name}
+                  </h3>
+                  <p className="text-gray-600 text-sm leading-relaxed mb-4 flex-grow">
+                    {partner.story}
+                  </p>
+
+                  {/* Follow-up button */}
+                  <button
+                    onClick={() => handleFollowUp(partner.link)}
+                    className="w-full bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <span>🔗</span>
+                    Follow Up
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.section>
+
         {/* Features Grid */}
         <motion.section
           variants={staggerContainer}
@@ -280,8 +423,6 @@ const About = () => {
           </div>
         </motion.section>
       </main>
-
-
     </div>
   );
 };
