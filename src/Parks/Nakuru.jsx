@@ -25,19 +25,24 @@ const Nakuru = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  // NEW: Added backend loading state
+  // Backend loading state
   const [backendLoading, setBackendLoading] = useState(false);
 
-  // UPDATED: Backend connection state
+  // Backend connection state
   const [backendStatus, setBackendStatus] = useState({
     connected: false,
     packageCount: 0,
   });
 
-  // NEW: Admin form state
+  // Admin form state
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [selectedRouteForPricing, setSelectedRouteForPricing] = useState(null);
+  
+  // NEW: Edit mode states
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingRoute, setEditingRoute] = useState(null);
+  
   const [adminForm, setAdminForm] = useState({
     routeName: "",
     description: "",
@@ -126,7 +131,6 @@ const Nakuru = () => {
       if (savedRoutes) {
         return JSON.parse(savedRoutes);
       }
-      // If no saved routes, save default routes to localStorage
       localStorage.setItem(
         "nakuruPackages",
         JSON.stringify(defaultSafariRoutes),
@@ -138,7 +142,7 @@ const Nakuru = () => {
     }
   });
 
-  // NEW: Save safari routes to localStorage whenever they change
+  // Save safari routes to localStorage whenever they change
   useEffect(() => {
     try {
       localStorage.setItem("nakuruPackages", JSON.stringify(safariRoutes));
@@ -147,7 +151,7 @@ const Nakuru = () => {
     }
   }, [safariRoutes]);
 
-  // NEW: Function to save safari routes to localStorage
+  // Function to save safari routes to localStorage
   const saveSafariRoutesToStorage = (routes) => {
     try {
       localStorage.setItem("nakuruPackages", JSON.stringify(routes));
@@ -162,18 +166,15 @@ const Nakuru = () => {
     }
   };
 
-  // UPDATED: Check backend connection on mount - MODIFIED TO FILTER BY "Lake Nakuru"
+  // Check backend connection on mount
   useEffect(() => {
     const checkBackendConnection = async () => {
       try {
-        // Try to get ALL safari packages from backend
         const packagesResponse = await fetch(
           "http://localhost:5000/api/safari-cards",
         );
         if (packagesResponse.ok) {
           const packagesData = await packagesResponse.json();
-
-          // Filter packages to only include those with "Lake Nakuru" in the name
           const filteredPackages =
             packagesData.success && packagesData.data
               ? packagesData.data.filter(
@@ -187,7 +188,6 @@ const Nakuru = () => {
             packageCount: filteredPackages.length,
           });
 
-          // Load filtered packages from backend if connected
           if (filteredPackages.length > 0) {
             loadPackagesFromBackend(filteredPackages);
           }
@@ -204,10 +204,9 @@ const Nakuru = () => {
     checkBackendConnection();
   }, []);
 
-  // UPDATED: Load packages from backend and merge with local
+  // Load packages from backend and merge with local
   const loadPackagesFromBackend = (backendPackages) => {
     try {
-      // Convert backend format to frontend format
       const convertedPackages = backendPackages.map((pkg) => {
         const hasPrices = pkg.prices && pkg.prices.length > 0;
         const basePrice = hasPrices ? pkg.prices[0] : null;
@@ -268,7 +267,6 @@ const Nakuru = () => {
         };
       });
 
-      // Merge with local packages, avoiding duplicates
       const allPackages = [...safariRoutes.filter((pkg) => !pkg.backendId)];
       convertedPackages.forEach((backendPkg) => {
         const exists = allPackages.some(
@@ -295,7 +293,6 @@ const Nakuru = () => {
         const bookingData = localStorage.getItem("nakuruBooking");
         if (bookingData) {
           const parsedData = JSON.parse(bookingData);
-          // Check if the saved booking is for Lake Nakuru
           if (
             parsedData.park &&
             parsedData.park.name === "Lake Nakuru National Park" &&
@@ -595,19 +592,95 @@ const Nakuru = () => {
     },
   ];
 
-  // UPDATED: Save package to backend - ENSURES "Lake Nakuru" IN NAME
+  // NEW: Edit safari package
+  const handleEditPackage = (route) => {
+    setEditingRoute(route);
+    setAdminForm({
+      routeName: route.name.replace("Lake Nakuru → ", "").trim(),
+      description: route.description,
+      duration: route.duration,
+      highlights: route.highlights.join(", "),
+      itinerary: route.itinerary,
+      priceOptions: [...route.priceOptions],
+    });
+    setShowEditModal(true);
+  };
+
+  // NEW: Update existing safari package
+  const handleUpdatePackage = async (e) => {
+    e.preventDefault();
+
+    // Ensure route name contains "Lake Nakuru"
+    const routeName = adminForm.routeName.includes("Lake Nakuru")
+      ? adminForm.routeName
+      : `Lake Nakuru → ${adminForm.routeName}`;
+
+    // Calculate min and max prices
+    const prices = adminForm.priceOptions.map((option) => option.price);
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+
+    // Parse highlights string into array
+    const highlightsArray = adminForm.highlights
+      .split(",")
+      .map((h) => h.trim())
+      .filter((h) => h.length > 0);
+
+    // Create updated route object
+    const updatedRoute = {
+      ...editingRoute,
+      name: routeName,
+      description: adminForm.description,
+      duration: adminForm.duration,
+      highlights: highlightsArray,
+      itinerary: adminForm.itinerary,
+      priceOptions: adminForm.priceOptions,
+      priceRange: { min: minPrice, max: maxPrice },
+    };
+
+    // Update the routes array
+    const updatedRoutes = safariRoutes.map((route) =>
+      route.id === editingRoute.id ? updatedRoute : route
+    );
+
+    setSafariRoutes(updatedRoutes);
+    saveSafariRoutesToStorage(updatedRoutes);
+
+    // If the edited route was selected, update selection
+    if (selectedRoute && selectedRoute.id === editingRoute.id) {
+      setSelectedRoute(updatedRoute);
+    }
+
+    Swal.fire({
+      title: "✅ Package Updated!",
+      html: `
+        <div class="text-left">
+          <p><strong>${updatedRoute.name}</strong> has been updated successfully.</p>
+          <div class="mt-4 p-3 bg-gray-50 rounded">
+            <p class="text-sm"><strong>Price Range:</strong> €${minPrice} - €${maxPrice}</p>
+            <p class="text-sm"><strong>Duration:</strong> ${updatedRoute.duration}</p>
+          </div>
+        </div>
+      `,
+      icon: "success",
+      confirmButtonColor: "#2563eb",
+    });
+
+    setShowEditModal(false);
+    setEditingRoute(null);
+  };
+
+  // Save package to backend
   const savePackageToBackend = async (packageData) => {
     try {
       setIsLoading(true);
 
-      // Ensure route name contains "Lake Nakuru"
       const routeName = packageData.name.includes("Lake Nakuru")
         ? packageData.name
         : `Lake Nakuru → ${packageData.name}`;
 
-      // Prepare data in EXACT format expected by backend
       const backendPackage = {
-        name: routeName, // Ensure "Lake Nakuru" is in the name
+        name: routeName,
         description: packageData.description,
         duration: packageData.duration || "3-5 days recommended",
         itinerary: packageData.itinerary || "",
@@ -638,7 +711,6 @@ const Nakuru = () => {
           confirmButtonColor: "#2563eb",
         });
 
-        // Return backend ID for tracking
         return {
           success: true,
           data: result,
@@ -661,7 +733,7 @@ const Nakuru = () => {
     }
   };
 
-  // UPDATED: Sync local packages with backend - FILTERS BY "Lake Nakuru"
+  // Sync local packages with backend
   const syncWithBackend = async () => {
     setBackendLoading(true);
     Swal.fire({
@@ -674,18 +746,15 @@ const Nakuru = () => {
     });
 
     try {
-      // Get ALL packages from backend
       const response = await fetch("http://localhost:5000/api/safari-cards");
       if (response.ok) {
         const packagesData = await response.json();
 
         if (packagesData.success) {
-          // Filter packages to only include those with "Lake Nakuru" in the name
           const filteredPackages = packagesData.data.filter(
             (pkg) => pkg.name && pkg.name.toLowerCase().includes("lake nakuru"),
           );
 
-          // Convert filtered backend packages to frontend format
           const backendPackages = filteredPackages.map((pkg) => {
             const hasPrices = pkg.prices && pkg.prices.length > 0;
             const basePrice = hasPrices ? pkg.prices[0] : null;
@@ -746,7 +815,6 @@ const Nakuru = () => {
             };
           });
 
-          // Merge with local packages
           const localPackages = safariRoutes.filter((pkg) => !pkg.backendId);
           const allPackages = [...localPackages, ...backendPackages];
 
@@ -778,7 +846,7 @@ const Nakuru = () => {
     }
   };
 
-  // NEW: Handle admin form changes
+  // Handle admin form changes
   const handleAdminFormChange = (e) => {
     const { name, value } = e.target;
     setAdminForm({
@@ -787,7 +855,7 @@ const Nakuru = () => {
     });
   };
 
-  // NEW: Handle price option changes
+  // Handle price option changes
   const handlePriceOptionChange = (index, field, value) => {
     const updatedPriceOptions = [...adminForm.priceOptions];
     updatedPriceOptions[index] = {
@@ -802,7 +870,7 @@ const Nakuru = () => {
     });
   };
 
-  // NEW: Add new price option
+  // Add new price option
   const addPriceOption = () => {
     if (adminForm.priceOptions.length >= 7) {
       Swal.fire({
@@ -814,7 +882,6 @@ const Nakuru = () => {
       return;
     }
 
-    // Find the next available people count
     const existingPeople = adminForm.priceOptions.map((opt) => opt.people);
     let nextPeople = 2;
     while (existingPeople.includes(nextPeople) && nextPeople <= 8) {
@@ -840,7 +907,7 @@ const Nakuru = () => {
     });
   };
 
-  // NEW: Remove price option
+  // Remove price option
   const removePriceOption = (index) => {
     if (adminForm.priceOptions.length <= 2) {
       Swal.fire({
@@ -861,30 +928,26 @@ const Nakuru = () => {
     });
   };
 
-  // UPDATED: Submit admin form to create new safari route - AUTOMATICALLY ADDS "Lake Nakuru"
+  // Submit admin form to create new safari route
   const handleAdminSubmit = async (e) => {
     e.preventDefault();
 
-    // Ensure route name contains "Lake Nakuru"
     const routeName = adminForm.routeName.includes("Lake Nakuru")
       ? adminForm.routeName
       : `Lake Nakuru → ${adminForm.routeName}`;
 
-    // Calculate min and max prices from price options
     const prices = adminForm.priceOptions.map((option) => option.price);
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
 
-    // Parse highlights string into array
     const highlightsArray = adminForm.highlights
       .split(",")
       .map((h) => h.trim())
       .filter((h) => h.length > 0);
 
-    // Create new safari route object
     const newRoute = {
       id: Date.now(),
-      name: routeName, // Use the ensured route name
+      name: routeName,
       description: adminForm.description,
       duration: adminForm.duration,
       highlights: highlightsArray,
@@ -893,7 +956,6 @@ const Nakuru = () => {
       priceRange: { min: minPrice, max: maxPrice },
     };
 
-    // Try to save to backend first
     let backendResult = null;
     if (backendStatus.connected) {
       backendResult = await savePackageToBackend(newRoute);
@@ -904,12 +966,10 @@ const Nakuru = () => {
       }
     }
 
-    // Add to safari routes
     const updatedRoutes = [...safariRoutes, newRoute];
     setSafariRoutes(updatedRoutes);
     saveSafariRoutesToStorage(updatedRoutes);
 
-    // Show success message
     Swal.fire({
       title: "✅ Package Created!",
       html: `
@@ -927,7 +987,6 @@ const Nakuru = () => {
       confirmButtonColor: "#2563eb",
     });
 
-    // Reset form
     setAdminForm({
       routeName: "",
       description: "",
@@ -947,7 +1006,7 @@ const Nakuru = () => {
     setShowAdminForm(false);
   };
 
-  // NEW: Delete safari package - PERMANENTLY
+  // Delete safari package
   const handleDeletePackage = (routeId) => {
     Swal.fire({
       title: "Delete Safari Package?",
@@ -960,14 +1019,12 @@ const Nakuru = () => {
       cancelButtonText: "Cancel",
     }).then((result) => {
       if (result.isConfirmed) {
-        // Filter out the deleted route
         const updatedRoutes = safariRoutes.filter(
           (route) => route.id !== routeId,
         );
         setSafariRoutes(updatedRoutes);
         saveSafariRoutesToStorage(updatedRoutes);
 
-        // If the deleted route was selected, clear the selection
         if (selectedRoute && selectedRoute.id === routeId) {
           setSelectedRoute(null);
         }
@@ -982,11 +1039,9 @@ const Nakuru = () => {
     });
   };
 
-  // FIXED: Modified handleRouteSelect to REQUIRE lodge selection
+  // Modified handleRouteSelect to REQUIRE lodge selection
   const handleRouteSelect = async (route) => {
-    // Check if lodge is selected - this is the CRITICAL FIX
     if (!selectedLodge) {
-      // Show SweetAlert asking user to select a lodge first
       const result = await Swal.fire({
         title: "Lodge Required",
         html: `
@@ -1011,18 +1066,16 @@ const Nakuru = () => {
       });
 
       if (result.isConfirmed) {
-        // Open lodge modal to force selection
         setShowLodgeModal(true);
       }
-      return; // STOP here - don't proceed with route selection
+      return;
     }
 
-    // Only proceed if lodge is selected
     setSelectedRouteForPricing(route);
     setShowPriceModal(true);
   };
 
-  // NEW: Handle final price selection and proceed to booking
+  // Handle final price selection
   const handleFinalPriceSelect = (people, price) => {
     setSelectedRoute(selectedRouteForPricing);
     setBookingForm({
@@ -1031,15 +1084,13 @@ const Nakuru = () => {
     });
     setShowPriceModal(false);
 
-    // Show booking modal directly after price selection
     setTimeout(() => {
       setShowBookingModal(true);
     }, 300);
   };
 
-  // NEW: Handle lodge selection with SweetAlert
+  // Handle lodge selection
   const handleLodgeSelection = async (lodge) => {
-    // Show loading spinner
     Swal.fire({
       title: "Selecting Lodge...",
       text: "Please wait while we save your lodge preference.",
@@ -1049,11 +1100,9 @@ const Nakuru = () => {
       },
     });
 
-    // Simulate async save
     setTimeout(() => {
       setSelectedLodge(lodge);
 
-      // Save to localStorage for persistence
       const bookingData = {
         park: parkInfo,
         lodge: lodge,
@@ -1079,7 +1128,7 @@ const Nakuru = () => {
     }, 1000);
   };
 
-  // NEW: Generate itinerary including lodge info
+  // Generate itinerary
   const generateItinerary = (days, route) => {
     const itineraries = [];
 
@@ -1116,11 +1165,10 @@ const Nakuru = () => {
     return itineraries;
   };
 
-  // MODIFIED: calculatePrice to use manual prices
+  // Calculate price
   const calculatePrice = (travelers, route) => {
     if (!route || !route.priceOptions) return 0;
 
-    // Find the price option for the selected number of travelers
     const priceOption = route.priceOptions.find(
       (option) => option.people === travelers,
     );
@@ -1129,22 +1177,19 @@ const Nakuru = () => {
       return priceOption.price;
     }
 
-    // If exact match not found, find the closest option
     const sortedOptions = [...route.priceOptions].sort(
       (a, b) => a.people - b.people,
     );
 
-    // Find the option with people >= travelers
     const higherOption = sortedOptions.find(
       (option) => option.people >= travelers,
     );
     if (higherOption) return higherOption.price;
 
-    // Otherwise use the highest option
     return sortedOptions[sortedOptions.length - 1].price;
   };
 
-  // NEW: Validate booking readiness
+  // Validate booking readiness
   const validateBookingReadiness = () => {
     if (!selectedLodge) {
       Swal.fire({
@@ -1184,7 +1229,7 @@ const Nakuru = () => {
 
   // Function to handle image errors
   const handleImageError = (e, fallbackImage) => {
-    e.target.onerror = null; // Prevent infinite loop
+    e.target.onerror = null;
     e.target.src = fallbackImage;
   };
 
@@ -1289,14 +1334,12 @@ ${bookingData.message || "No additional message"}
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validate booking readiness
     if (!validateBookingReadiness()) {
       return;
     }
 
     setIsLoading(true);
 
-    // Show loading spinner
     Swal.fire({
       title: "Processing Booking...",
       text: "Please wait while we process your booking request.",
@@ -1310,9 +1353,7 @@ ${bookingData.message || "No additional message"}
       const totalPrice = calculatePrice(bookingForm.travelers, selectedRoute);
       const itinerary = generateItinerary(selectedDays, selectedRoute.name);
 
-      // Prepare booking data to match backend's expected fields
       const bookingData = {
-        // REQUIRED FIELDS by backend:
         park: parkInfo.name,
         lodge: selectedLodge.name,
         days: selectedDays,
@@ -1321,8 +1362,6 @@ ${bookingData.message || "No additional message"}
         fullName: bookingForm.fullName,
         email: bookingForm.email,
         phone: bookingForm.phone,
-
-        // OPTIONAL FIELDS that backend also accepts:
         startDate: bookingForm.startDate || "Flexible",
         message: bookingForm.message || "",
         parkHighlights: parkInfo.highlights.join(", "),
@@ -1331,8 +1370,6 @@ ${bookingData.message || "No additional message"}
         specialFeature: parkInfo.specialFeature,
         lodgeDescription: selectedLodge.description,
         itinerary: itinerary.join("\n"),
-
-        // Additional info for tracking
         bookingSource: "Lake Nakuru Park Page",
         route: selectedRoute.name,
         lodgeFeatures: selectedLodge.features?.join(", ") || "",
@@ -1340,11 +1377,9 @@ ${bookingData.message || "No additional message"}
 
       console.log("📝 Lake Nakuru booking data:", bookingData);
 
-      // Try to send to backend first
       const result = await sendBookingToBackend(bookingData);
 
       if (!result.success) {
-        // If backend fails, use direct email fallback
         console.log("⚠️ Backend failed, using fallback email...");
         sendDirectEmail({
           ...bookingData,
@@ -1352,7 +1387,6 @@ ${bookingData.message || "No additional message"}
         });
       }
 
-      // Reset form and close modals
       setShowBookingModal(false);
       setShowItineraryModal(false);
       setBookingForm({
@@ -1367,7 +1401,7 @@ ${bookingData.message || "No additional message"}
     }, 1500);
   };
 
-  // NEW: Function to clear lodge selection
+  // Function to clear lodge selection
   const handleClearLodgeSelection = () => {
     Swal.fire({
       title: "Change Lodge?",
@@ -1381,7 +1415,6 @@ ${bookingData.message || "No additional message"}
     }).then((result) => {
       if (result.isConfirmed) {
         setSelectedLodge(null);
-        // Also remove from localStorage
         try {
           localStorage.removeItem("nakuruBooking");
         } catch (error) {
@@ -1400,6 +1433,7 @@ ${bookingData.message || "No additional message"}
       setShowLodgeModal(false);
       setShowPriceModal(false);
       setShowAdminForm(false);
+      setShowEditModal(false);
     }
   };
 
@@ -1421,7 +1455,6 @@ ${bookingData.message || "No additional message"}
             </h1>
             <p className="text-xl max-w-2xl">{parkInfo.description}</p>
 
-            {/* Selected Lodge Badge */}
             {selectedLodge && (
               <div className="mt-4 inline-flex items-center bg-green-600/80 backdrop-blur-sm text-white px-4 py-2 rounded-lg">
                 <svg
@@ -1823,7 +1856,7 @@ ${bookingData.message || "No additional message"}
           </div>
         </div>
 
-        {/* Safari Routes - WITH PERSISTENCE - FILTERED FOR LAKE NAKURU */}
+        {/* Safari Routes - WITH PERSISTENCE AND EDITING */}
         <div className="mb-16">
           <div className="flex justify-between items-center mb-8">
             <div>
@@ -2014,26 +2047,47 @@ ${bookingData.message || "No additional message"}
                     </span>
                   </div>
 
-                  {/* Delete Button */}
-                  <button
-                    onClick={() => handleDeletePackage(route.id)}
-                    className="absolute top-12 right-4 bg-blue-100 hover:bg-blue-200 text-blue-600 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"
-                    title="Delete Package Permanently"
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  {/* Action Buttons - Edit & Delete */}
+                  <div className="absolute top-12 right-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <button
+                      onClick={() => handleEditPackage(route)}
+                      className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full shadow-lg transition-colors"
+                      title="Edit Package"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                  </button>
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleDeletePackage(route.id)}
+                      className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-lg transition-colors"
+                      title="Delete Package"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </button>
+                  </div>
 
                   <div className="h-48 bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
                     <div className="text-white text-center p-4">
@@ -2261,7 +2315,279 @@ ${bookingData.message || "No additional message"}
         </div>
       </div>
 
-      {/* Admin Form Modal - AUTO-ADDS "Lake Nakuru" */}
+      {/* Edit Modal */}
+      {showEditModal && editingRoute && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          onClick={(e) =>
+            e.target === e.currentTarget && setShowEditModal(false)
+          }
+        >
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Edit Safari Package
+                </h2>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Edit Notice */}
+              <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <svg
+                    className="w-5 h-5 text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    />
+                  </svg>
+                  <p className="text-sm text-blue-800">
+                    Editing package: <strong>{editingRoute.name}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleUpdatePackage}>
+                <div className="space-y-4">
+                  {/* Route Name */}
+                  <div>
+                    <label className="block text-gray-700 font-semibold mb-2">
+                      Route Name *
+                    </label>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-blue-600 font-bold">
+                        Lake Nakuru →
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        (auto-added)
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      name="routeName"
+                      value={adminForm.routeName}
+                      onChange={handleAdminFormChange}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter the rest of the route (e.g., Lake Naivasha → Nairobi)"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Full route will be:{" "}
+                      <strong>
+                        Lake Nakuru → {adminForm.routeName || "[your route]"}
+                      </strong>
+                    </p>
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="block text-gray-700 font-semibold mb-2">
+                      Description *
+                    </label>
+                    <textarea
+                      name="description"
+                      value={adminForm.description}
+                      onChange={handleAdminFormChange}
+                      required
+                      rows="2"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Describe the Lake Nakuru safari experience..."
+                    />
+                  </div>
+
+                  {/* Duration */}
+                  <div>
+                    <label className="block text-gray-700 font-semibold mb-2">
+                      Duration *
+                    </label>
+                    <input
+                      type="text"
+                      name="duration"
+                      value={adminForm.duration}
+                      onChange={handleAdminFormChange}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="e.g., 3-5 days recommended"
+                    />
+                  </div>
+
+                  {/* Highlights */}
+                  <div>
+                    <label className="block text-gray-700 font-semibold mb-2">
+                      Highlights (comma-separated) *
+                    </label>
+                    <input
+                      type="text"
+                      name="highlights"
+                      value={adminForm.highlights}
+                      onChange={handleAdminFormChange}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="e.g., Flamingo Spectacle, Rhino Sanctuary, Bird Watching"
+                    />
+                  </div>
+
+                  {/* Itinerary */}
+                  <div>
+                    <label className="block text-gray-700 font-semibold mb-2">
+                      Itinerary Details *
+                    </label>
+                    <textarea
+                      name="itinerary"
+                      value={adminForm.itinerary}
+                      onChange={handleAdminFormChange}
+                      required
+                      rows="4"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Detailed day-by-day itinerary starting from Lake Nakuru..."
+                    />
+                  </div>
+
+                  {/* Price Options */}
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <label className="block text-gray-700 font-semibold">
+                        Price Options (2-8 pax, per person) *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={addPriceOption}
+                        disabled={adminForm.priceOptions.length >= 7}
+                        className={`text-sm px-3 py-1 rounded transition-colors ${
+                          adminForm.priceOptions.length >= 7
+                            ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                            : "bg-green-600 hover:bg-green-700 text-white"
+                        }`}
+                      >
+                        Add Price Option
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {adminForm.priceOptions.map((option, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg"
+                        >
+                          <div className="flex-1">
+                            <label className="block text-sm text-gray-700 mb-1">
+                              Pax (2-8)
+                            </label>
+                            <input
+                              type="number"
+                              value={option.people}
+                              onChange={(e) =>
+                                handlePriceOptionChange(
+                                  index,
+                                  "people",
+                                  e.target.value,
+                                )
+                              }
+                              min="2"
+                              max="8"
+                              className="w-full px-3 py-1 border border-gray-300 rounded"
+                              required
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-sm text-gray-700 mb-1">
+                              Price (€)
+                            </label>
+                            <input
+                              type="number"
+                              value={option.price}
+                              onChange={(e) =>
+                                handlePriceOptionChange(
+                                  index,
+                                  "price",
+                                  e.target.value,
+                                )
+                              }
+                              min="1"
+                              className="w-full px-3 py-1 border border-gray-300 rounded"
+                              required
+                            />
+                          </div>
+                          <div className="flex items-end">
+                            <span className="text-gray-600">€ per pax</span>
+                            {adminForm.priceOptions.length > 2 && (
+                              <button
+                                type="button"
+                                onClick={() => removePriceOption(index)}
+                                className="ml-3 text-blue-600 hover:text-blue-800"
+                              >
+                                <svg
+                                  className="w-5 h-5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                  />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-sm text-gray-500 mt-2">
+                      * Minimum 2 price options required. You can add up to 7
+                      options (2-8 pax).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 mt-8 pt-6 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(false)}
+                    className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Update Package
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Form Modal */}
       {showAdminForm && (
         <div
           className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"

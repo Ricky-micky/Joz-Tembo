@@ -20,16 +20,21 @@ const SaltLick = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  // UPDATED: Backend connection state
+  // Backend connection state
   const [backendStatus, setBackendStatus] = useState({
     connected: false,
     packageCount: 0,
   });
 
-  // NEW: Admin form state
+  // Admin form state
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [selectedRouteForPricing, setSelectedRouteForPricing] = useState(null);
+
+  // NEW: Edit mode states
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingRoute, setEditingRoute] = useState(null);
+
   const [adminForm, setAdminForm] = useState({
     routeName: "",
     description: "",
@@ -126,7 +131,6 @@ const SaltLick = () => {
       if (savedRoutes) {
         return JSON.parse(savedRoutes);
       }
-      // If no saved routes, save default routes to localStorage
       localStorage.setItem(
         "saltLickPackages",
         JSON.stringify(defaultSafariRoutes),
@@ -138,7 +142,7 @@ const SaltLick = () => {
     }
   });
 
-  // NEW: Save safari routes to localStorage whenever they change
+  // Save safari routes to localStorage whenever they change
   useEffect(() => {
     try {
       localStorage.setItem("saltLickPackages", JSON.stringify(safariRoutes));
@@ -147,7 +151,7 @@ const SaltLick = () => {
     }
   }, [safariRoutes]);
 
-  // NEW: Function to save safari routes to localStorage
+  // Function to save safari routes to localStorage
   const saveSafariRoutesToStorage = (routes) => {
     try {
       localStorage.setItem("saltLickPackages", JSON.stringify(routes));
@@ -162,11 +166,10 @@ const SaltLick = () => {
     }
   };
 
-  // UPDATED: Check backend connection on mount
+  // Check backend connection on mount
   useEffect(() => {
     const checkBackendConnection = async () => {
       try {
-        // Try to get safari packages directly
         const packagesResponse = await fetch(
           "http://localhost:5000/api/safari-cards",
         );
@@ -177,7 +180,6 @@ const SaltLick = () => {
             packageCount: packagesData.success ? packagesData.count : 0,
           });
 
-          // Load packages from backend if connected
           if (packagesData.success && packagesData.data.length > 0) {
             loadPackagesFromBackend(packagesData.data);
           }
@@ -194,10 +196,9 @@ const SaltLick = () => {
     checkBackendConnection();
   }, []);
 
-  // UPDATED: Load packages from backend and merge with local
+  // Load packages from backend and merge with local
   const loadPackagesFromBackend = (backendPackages) => {
     try {
-      // Convert backend format to frontend format
       const convertedPackages = backendPackages.map((pkg) => {
         const hasPrices = pkg.prices && pkg.prices.length > 0;
         const basePrice = hasPrices ? pkg.prices[0] : null;
@@ -265,7 +266,6 @@ const SaltLick = () => {
         };
       });
 
-      // Merge with local packages, avoiding duplicates
       const allPackages = [...safariRoutes.filter((pkg) => !pkg.backendId)];
       convertedPackages.forEach((backendPkg) => {
         const exists = allPackages.some(
@@ -292,7 +292,6 @@ const SaltLick = () => {
         const bookingData = localStorage.getItem("saltLickBooking");
         if (bookingData) {
           const parsedData = JSON.parse(bookingData);
-          // Check if the saved booking is for Salt Lick
           if (
             parsedData.park &&
             parsedData.park.name === "Salt Lick Safari Lodge" &&
@@ -338,7 +337,7 @@ const SaltLick = () => {
     },
   };
 
-  // Salt Lick Lodges (since it's a specific lodge, we'll show room options)
+  // Salt Lick Rooms
   const saltLickRooms = [
     {
       name: "Standard Room",
@@ -542,12 +541,84 @@ const SaltLick = () => {
     },
   ];
 
-  // UPDATED: Save package to backend
+  // NEW: Edit safari package
+  const handleEditPackage = (route) => {
+    setEditingRoute(route);
+    setAdminForm({
+      routeName: route.name,
+      description: route.description,
+      duration: route.duration,
+      highlights: route.highlights.join(", "),
+      itinerary: route.itinerary,
+      priceOptions: [...route.priceOptions],
+    });
+    setShowEditModal(true);
+  };
+
+  // NEW: Update existing safari package
+  const handleUpdatePackage = async (e) => {
+    e.preventDefault();
+
+    // Calculate min and max prices
+    const prices = adminForm.priceOptions.map((option) => option.price);
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+
+    // Parse highlights string into array
+    const highlightsArray = adminForm.highlights
+      .split(",")
+      .map((h) => h.trim())
+      .filter((h) => h.length > 0);
+
+    // Create updated route object
+    const updatedRoute = {
+      ...editingRoute,
+      name: adminForm.routeName,
+      description: adminForm.description,
+      duration: adminForm.duration,
+      highlights: highlightsArray,
+      itinerary: adminForm.itinerary,
+      priceOptions: adminForm.priceOptions,
+      priceRange: { min: minPrice, max: maxPrice },
+    };
+
+    // Update the routes array
+    const updatedRoutes = safariRoutes.map((route) =>
+      route.id === editingRoute.id ? updatedRoute : route,
+    );
+
+    setSafariRoutes(updatedRoutes);
+    saveSafariRoutesToStorage(updatedRoutes);
+
+    // If the edited route was selected, update selection
+    if (selectedRoute && selectedRoute.id === editingRoute.id) {
+      setSelectedRoute(updatedRoute);
+    }
+
+    Swal.fire({
+      title: "✅ Package Updated!",
+      html: `
+        <div class="text-left">
+          <p><strong>${updatedRoute.name}</strong> has been updated successfully.</p>
+          <div class="mt-4 p-3 bg-gray-50 rounded">
+            <p class="text-sm"><strong>Price Range:</strong> $${minPrice} - $${maxPrice}</p>
+            <p class="text-sm"><strong>Duration:</strong> ${updatedRoute.duration}</p>
+          </div>
+        </div>
+      `,
+      icon: "success",
+      confirmButtonColor: "#92400e",
+    });
+
+    setShowEditModal(false);
+    setEditingRoute(null);
+  };
+
+  // Save package to backend
   const savePackageToBackend = async (packageData) => {
     try {
       setIsLoading(true);
 
-      // Prepare data in EXACT format expected by backend
       const backendPackage = {
         name: packageData.name,
         description: packageData.description,
@@ -580,7 +651,6 @@ const SaltLick = () => {
           confirmButtonColor: "#92400e",
         });
 
-        // Return backend ID for tracking
         return {
           success: true,
           data: result,
@@ -603,7 +673,7 @@ const SaltLick = () => {
     }
   };
 
-  // UPDATED: Sync local packages with backend
+  // Sync local packages with backend
   const syncWithBackend = async () => {
     setIsLoading(true);
     Swal.fire({
@@ -616,13 +686,11 @@ const SaltLick = () => {
     });
 
     try {
-      // Get all packages from backend
       const response = await fetch("http://localhost:5000/api/safari-cards");
       if (response.ok) {
         const packagesData = await response.json();
 
         if (packagesData.success) {
-          // Convert backend packages to frontend format
           const backendPackages = packagesData.data.map((pkg) => {
             const hasPrices = pkg.prices && pkg.prices.length > 0;
             const basePrice = hasPrices ? pkg.prices[0] : null;
@@ -690,7 +758,6 @@ const SaltLick = () => {
             };
           });
 
-          // Merge with local packages
           const localPackages = safariRoutes.filter((pkg) => !pkg.backendId);
           const allPackages = [...localPackages, ...backendPackages];
 
@@ -722,7 +789,7 @@ const SaltLick = () => {
     }
   };
 
-  // NEW: Handle admin form changes
+  // Handle admin form changes
   const handleAdminFormChange = (e) => {
     const { name, value } = e.target;
     setAdminForm({
@@ -731,7 +798,7 @@ const SaltLick = () => {
     });
   };
 
-  // NEW: Handle price option changes
+  // Handle price option changes
   const handlePriceOptionChange = (index, field, value) => {
     const updatedPriceOptions = [...adminForm.priceOptions];
     updatedPriceOptions[index] = {
@@ -746,7 +813,7 @@ const SaltLick = () => {
     });
   };
 
-  // NEW: Add new price option
+  // Add new price option
   const addPriceOption = () => {
     if (adminForm.priceOptions.length >= 8) {
       Swal.fire({
@@ -758,7 +825,6 @@ const SaltLick = () => {
       return;
     }
 
-    // Find the next available people count
     const existingPeople = adminForm.priceOptions.map((opt) => opt.people);
     let nextPeople = 1;
     while (existingPeople.includes(nextPeople) && nextPeople <= 8) {
@@ -784,7 +850,7 @@ const SaltLick = () => {
     });
   };
 
-  // NEW: Remove price option
+  // Remove price option
   const removePriceOption = (index) => {
     if (adminForm.priceOptions.length <= 2) {
       Swal.fire({
@@ -805,22 +871,19 @@ const SaltLick = () => {
     });
   };
 
-  // UPDATED: Submit admin form to create new safari route
+  // Submit admin form to create new safari route
   const handleAdminSubmit = async (e) => {
     e.preventDefault();
 
-    // Calculate min and max prices from price options
     const prices = adminForm.priceOptions.map((option) => option.price);
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
 
-    // Parse highlights string into array
     const highlightsArray = adminForm.highlights
       .split(",")
       .map((h) => h.trim())
       .filter((h) => h.length > 0);
 
-    // Create new safari route object
     const newRoute = {
       id: Date.now(),
       name: adminForm.routeName,
@@ -832,7 +895,6 @@ const SaltLick = () => {
       priceRange: { min: minPrice, max: maxPrice },
     };
 
-    // Try to save to backend first
     let backendResult = null;
     if (backendStatus.connected) {
       backendResult = await savePackageToBackend(newRoute);
@@ -843,12 +905,10 @@ const SaltLick = () => {
       }
     }
 
-    // Add to safari routes
     const updatedRoutes = [...safariRoutes, newRoute];
     setSafariRoutes(updatedRoutes);
     saveSafariRoutesToStorage(updatedRoutes);
 
-    // Show success message
     Swal.fire({
       title: "✅ Package Created!",
       html: `
@@ -865,7 +925,6 @@ const SaltLick = () => {
       confirmButtonColor: "#92400e",
     });
 
-    // Reset form
     setAdminForm({
       routeName: "",
       description: "",
@@ -886,7 +945,7 @@ const SaltLick = () => {
     setShowAdminForm(false);
   };
 
-  // NEW: Delete safari package - PERMANENTLY
+  // Delete safari package
   const handleDeletePackage = (routeId) => {
     Swal.fire({
       title: "Delete Safari Package?",
@@ -899,14 +958,12 @@ const SaltLick = () => {
       cancelButtonText: "Cancel",
     }).then((result) => {
       if (result.isConfirmed) {
-        // Filter out the deleted route
         const updatedRoutes = safariRoutes.filter(
           (route) => route.id !== routeId,
         );
         setSafariRoutes(updatedRoutes);
         saveSafariRoutesToStorage(updatedRoutes);
 
-        // If the deleted route was selected, clear the selection
         if (selectedRoute && selectedRoute.id === routeId) {
           setSelectedRoute(null);
         }
@@ -921,11 +978,9 @@ const SaltLick = () => {
     });
   };
 
-  // FIXED: Modified handleRouteSelect to REQUIRE room selection
+  // Modified handleRouteSelect to REQUIRE room selection
   const handleRouteSelect = async (route) => {
-    // Check if room is selected - this is the CRITICAL FIX
     if (!selectedLodge) {
-      // Show SweetAlert asking user to select a room first
       const result = await Swal.fire({
         title: "Room Selection Required",
         html: `
@@ -950,18 +1005,16 @@ const SaltLick = () => {
       });
 
       if (result.isConfirmed) {
-        // Open room modal to force selection
         setShowLodgeModal(true);
       }
-      return; // STOP here - don't proceed with route selection
+      return;
     }
 
-    // Only proceed if room is selected
     setSelectedRouteForPricing(route);
     setShowPriceModal(true);
   };
 
-  // NEW: Handle final price selection and proceed to booking
+  // Handle final price selection
   const handleFinalPriceSelect = (people, price) => {
     setSelectedRoute(selectedRouteForPricing);
     setBookingForm({
@@ -970,15 +1023,13 @@ const SaltLick = () => {
     });
     setShowPriceModal(false);
 
-    // Show booking modal directly after price selection
     setTimeout(() => {
       setShowBookingModal(true);
     }, 300);
   };
 
-  // NEW: Handle room selection with SweetAlert
+  // Handle room selection
   const handleRoomSelection = async (room) => {
-    // Show loading spinner
     Swal.fire({
       title: "Selecting Room...",
       text: "Please wait while we save your room preference.",
@@ -988,11 +1039,9 @@ const SaltLick = () => {
       },
     });
 
-    // Simulate async save
     setTimeout(() => {
       setSelectedLodge(room);
 
-      // Save to localStorage for persistence
       const bookingData = {
         park: lodgeInfo,
         lodge: room,
@@ -1018,7 +1067,7 @@ const SaltLick = () => {
     }, 1000);
   };
 
-  // NEW: Generate itinerary including room info
+  // Generate itinerary
   const generateItinerary = (days, route) => {
     const itineraries = [];
 
@@ -1036,13 +1085,20 @@ const SaltLick = () => {
       } else {
         const parksInRoute = route.split("→").map((park) => park.trim());
         const currentParkIndex = Math.min(i - 2, parksInRoute.length - 1);
-        if (parksInRoute[currentParkIndex].includes("Salt Lick")) {
+        if (
+          parksInRoute[currentParkIndex] &&
+          parksInRoute[currentParkIndex].includes("Salt Lick")
+        ) {
           itineraries.push(
             `Day ${i}: Full day at Salt Lick with waterhole photography, game drives, and lodge activities. Staying in ${selectedLodge?.name || "your room"}`,
           );
-        } else {
+        } else if (parksInRoute[currentParkIndex]) {
           itineraries.push(
             `Day ${i}: Travel to ${parksInRoute[currentParkIndex]} for wildlife viewing and exploration`,
+          );
+        } else {
+          itineraries.push(
+            `Day ${i}: Game drive and wildlife viewing in the Taita Hills Sanctuary`,
           );
         }
       }
@@ -1050,11 +1106,10 @@ const SaltLick = () => {
     return itineraries;
   };
 
-  // MODIFIED: calculatePrice to use manual prices
+  // Calculate price
   const calculatePrice = (travelers, route) => {
     if (!route || !route.priceOptions) return 0;
 
-    // Find the price option for the selected number of travelers
     const priceOption = route.priceOptions.find(
       (option) => option.people === travelers,
     );
@@ -1063,22 +1118,19 @@ const SaltLick = () => {
       return priceOption.price;
     }
 
-    // If exact match not found, find the closest option
     const sortedOptions = [...route.priceOptions].sort(
       (a, b) => a.people - b.people,
     );
 
-    // Find the option with people >= travelers
     const higherOption = sortedOptions.find(
       (option) => option.people >= travelers,
     );
     if (higherOption) return higherOption.price;
 
-    // Otherwise use the highest option
     return sortedOptions[sortedOptions.length - 1].price;
   };
 
-  // NEW: Validate booking readiness
+  // Validate booking readiness
   const validateBookingReadiness = () => {
     if (!selectedLodge) {
       Swal.fire({
@@ -1118,7 +1170,7 @@ const SaltLick = () => {
 
   // Function to handle image errors
   const handleImageError = (e, fallbackImage) => {
-    e.target.onerror = null; // Prevent infinite loop
+    e.target.onerror = null;
     e.target.src = fallbackImage;
   };
 
@@ -1229,14 +1281,12 @@ ${lodgeInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validate booking readiness
     if (!validateBookingReadiness()) {
       return;
     }
 
     setIsLoading(true);
 
-    // Show loading spinner
     Swal.fire({
       title: "Processing Booking...",
       text: "Please wait while we process your booking request.",
@@ -1250,9 +1300,7 @@ ${lodgeInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
       const totalPrice = calculatePrice(bookingForm.travelers, selectedRoute);
       const itinerary = generateItinerary(selectedDays, selectedRoute.name);
 
-      // Prepare booking data to match backend's expected fields
       const bookingData = {
-        // REQUIRED FIELDS by backend:
         park: lodgeInfo.name,
         lodge: selectedLodge.name,
         days: selectedDays,
@@ -1261,8 +1309,6 @@ ${lodgeInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
         fullName: bookingForm.fullName,
         email: bookingForm.email,
         phone: bookingForm.phone,
-
-        // OPTIONAL FIELDS that backend also accepts:
         startDate: bookingForm.startDate || "Flexible",
         message: bookingForm.message || "",
         parkHighlights: lodgeInfo.highlights.join(", "),
@@ -1271,8 +1317,6 @@ ${lodgeInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
         specialFeature: lodgeInfo.specialFeature,
         lodgeDescription: selectedLodge.description,
         itinerary: itinerary.join("\n"),
-
-        // Additional info for tracking
         bookingSource: "Salt Lick Lodge Page",
         route: selectedRoute.name,
         lodgeFeatures: selectedLodge.features?.join(", ") || "",
@@ -1280,11 +1324,9 @@ ${lodgeInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
 
       console.log("📝 Salt Lick booking data:", bookingData);
 
-      // Try to send to backend first
       const result = await sendBookingToBackend(bookingData);
 
       if (!result.success) {
-        // If backend fails, use direct email fallback
         console.log("⚠️ Backend failed, using fallback email...");
         sendDirectEmail({
           ...bookingData,
@@ -1292,7 +1334,6 @@ ${lodgeInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
         });
       }
 
-      // Reset form and close modals
       setShowBookingModal(false);
       setShowItineraryModal(false);
       setBookingForm({
@@ -1307,7 +1348,7 @@ ${lodgeInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
     }, 1500);
   };
 
-  // NEW: Function to clear room selection
+  // Function to clear room selection
   const handleClearRoomSelection = () => {
     Swal.fire({
       title: "Change Room?",
@@ -1321,7 +1362,6 @@ ${lodgeInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
     }).then((result) => {
       if (result.isConfirmed) {
         setSelectedLodge(null);
-        // Also remove from localStorage
         try {
           localStorage.removeItem("saltLickBooking");
         } catch (error) {
@@ -1340,6 +1380,7 @@ ${lodgeInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
       setShowLodgeModal(false);
       setShowPriceModal(false);
       setShowAdminForm(false);
+      setShowEditModal(false);
     }
   };
 
@@ -1402,7 +1443,6 @@ ${lodgeInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
             <p className="text-2xl mb-4 font-light">{lodgeInfo.tagline}</p>
             <p className="text-xl max-w-2xl mb-6">{lodgeInfo.description}</p>
 
-            {/* Selected Room Badge */}
             {selectedLodge && (
               <div className="mt-4 inline-flex items-center bg-green-600/80 backdrop-blur-sm text-white px-4 py-2 rounded-lg">
                 <svg
@@ -1803,7 +1843,7 @@ ${lodgeInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           </div>
         </div>
 
-        {/* Safari Routes - WITH PERSISTENCE */}
+        {/* Safari Routes - WITH PERSISTENCE AND EDITING */}
         <div className="mb-16">
           <div className="flex justify-between items-center mb-8">
             <div>
@@ -1983,26 +2023,47 @@ ${lodgeInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                     </span>
                   </div>
 
-                  {/* Delete Button */}
-                  <button
-                    onClick={() => handleDeletePackage(route.id)}
-                    className="absolute top-4 right-4 bg-amber-100 hover:bg-amber-200 text-amber-600 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"
-                    title="Delete Package Permanently"
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  {/* Action Buttons - Edit & Delete */}
+                  <div className="absolute top-2 right-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <button
+                      onClick={() => handleEditPackage(route)}
+                      className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full shadow-lg transition-colors"
+                      title="Edit Package"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                  </button>
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleDeletePackage(route.id)}
+                      className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-lg transition-colors"
+                      title="Delete Package"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </button>
+                  </div>
 
                   <div className="h-48 bg-gradient-to-r from-amber-600 to-amber-700 flex items-center justify-center">
                     <div className="text-white text-center p-4">
@@ -2226,6 +2287,264 @@ ${lodgeInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
         </div>
       </div>
 
+      {/* Edit Modal */}
+      {showEditModal && editingRoute && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          onClick={(e) =>
+            e.target === e.currentTarget && setShowEditModal(false)
+          }
+        >
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Edit Safari Package
+                </h2>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Edit Notice */}
+              <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <svg
+                    className="w-5 h-5 text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    />
+                  </svg>
+                  <p className="text-sm text-blue-800">
+                    Editing package: <strong>{editingRoute.name}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleUpdatePackage}>
+                <div className="space-y-4">
+                  {/* Route Name */}
+                  <div>
+                    <label className="block text-gray-700 font-semibold mb-2">
+                      Route Name *
+                    </label>
+                    <input
+                      type="text"
+                      name="routeName"
+                      value={adminForm.routeName}
+                      onChange={handleAdminFormChange}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      placeholder="e.g., Salt Lick → Tsavo West → Amboseli Safari"
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="block text-gray-700 font-semibold mb-2">
+                      Description *
+                    </label>
+                    <textarea
+                      name="description"
+                      value={adminForm.description}
+                      onChange={handleAdminFormChange}
+                      required
+                      rows="2"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      placeholder="Describe the Salt Lick safari experience..."
+                    />
+                  </div>
+
+                  {/* Duration */}
+                  <div>
+                    <label className="block text-gray-700 font-semibold mb-2">
+                      Duration *
+                    </label>
+                    <input
+                      type="text"
+                      name="duration"
+                      value={adminForm.duration}
+                      onChange={handleAdminFormChange}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      placeholder="e.g., 3-5 days recommended"
+                    />
+                  </div>
+
+                  {/* Highlights */}
+                  <div>
+                    <label className="block text-gray-700 font-semibold mb-2">
+                      Highlights (comma-separated) *
+                    </label>
+                    <input
+                      type="text"
+                      name="highlights"
+                      value={adminForm.highlights}
+                      onChange={handleAdminFormChange}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      placeholder="e.g., Waterhole Viewing, Photography, Luxury Accommodation"
+                    />
+                  </div>
+
+                  {/* Itinerary */}
+                  <div>
+                    <label className="block text-gray-700 font-semibold mb-2">
+                      Itinerary Details *
+                    </label>
+                    <textarea
+                      name="itinerary"
+                      value={adminForm.itinerary}
+                      onChange={handleAdminFormChange}
+                      required
+                      rows="4"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      placeholder="Detailed day-by-day itinerary..."
+                    />
+                  </div>
+
+                  {/* Price Options */}
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <label className="block text-gray-700 font-semibold">
+                        Price Options (1-8 pax, per person) *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={addPriceOption}
+                        disabled={adminForm.priceOptions.length >= 8}
+                        className={`text-sm px-3 py-1 rounded transition-colors ${
+                          adminForm.priceOptions.length >= 8
+                            ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                            : "bg-green-600 hover:bg-green-700 text-white"
+                        }`}
+                      >
+                        Add Price Option
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {adminForm.priceOptions.map((option, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg"
+                        >
+                          <div className="flex-1">
+                            <label className="block text-sm text-gray-700 mb-1">
+                              Pax (1-8)
+                            </label>
+                            <input
+                              type="number"
+                              value={option.people}
+                              onChange={(e) =>
+                                handlePriceOptionChange(
+                                  index,
+                                  "people",
+                                  e.target.value,
+                                )
+                              }
+                              min="1"
+                              max="8"
+                              className="w-full px-3 py-1 border border-gray-300 rounded"
+                              required
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-sm text-gray-700 mb-1">
+                              Price ($)
+                            </label>
+                            <input
+                              type="number"
+                              value={option.price}
+                              onChange={(e) =>
+                                handlePriceOptionChange(
+                                  index,
+                                  "price",
+                                  e.target.value,
+                                )
+                              }
+                              min="1"
+                              className="w-full px-3 py-1 border border-gray-300 rounded"
+                              required
+                            />
+                          </div>
+                          <div className="flex items-end">
+                            <span className="text-gray-600">$ per pax</span>
+                            {adminForm.priceOptions.length > 2 && (
+                              <button
+                                type="button"
+                                onClick={() => removePriceOption(index)}
+                                className="ml-3 text-amber-600 hover:text-amber-800"
+                              >
+                                <svg
+                                  className="w-5 h-5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                  />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-sm text-gray-500 mt-2">
+                      * Minimum 2 price options required. You can add up to 8
+                      options (1-8 pax).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 mt-8 pt-6 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(false)}
+                    className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Update Package
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Admin Form Modal */}
       {showAdminForm && (
         <div
@@ -2282,26 +2601,6 @@ ${lodgeInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                       : "Backend offline. Package will be saved locally only."}
                   </p>
                 </div>
-              </div>
-
-              {/* Backend Integration Info */}
-              <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <h4 className="font-semibold text-yellow-800 mb-2">
-                  Backend Integration Info
-                </h4>
-                <ul className="text-sm text-yellow-700 space-y-1">
-                  <li>• All packages are saved locally in your browser</li>
-                  <li>
-                    • When backend is connected, packages are also saved to
-                    database
-                  </li>
-                  <li>
-                    • Database packages have priority and sync automatically
-                  </li>
-                  <li>
-                    • Backend stores: Package info, itinerary, and price options
-                  </li>
-                </ul>
               </div>
 
               <form onSubmit={handleAdminSubmit}>

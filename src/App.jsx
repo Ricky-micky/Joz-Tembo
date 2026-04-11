@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Navbar from "./Components/Navbar";
 import Home from "./Pages/Home";
 import Footer from "./Components/Footer";
-import Safaris from "./Pages/Safaris";
+// import Safaris from "./Pages/Safaris";
 import Amboseli from "./Parks/Amboseli";
 import Maasaimara from "./Parks/Maasaimara";
 import Nakuru from "./Parks/Nakuru";
@@ -30,7 +30,7 @@ export default function App() {
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<Home />} />
-              <Route path="/safaris" element={<Safaris />} />
+              {/* <Route path="/safaris" element={<Safaris />} /> */}
               <Route path="/amboseli" element={<Amboseli />} />
               <Route path="/tsavoeast" element={<TsavoEast />} />
               <Route path="/tsavowest" element={<Tsavowest />} />
