@@ -999,7 +999,7 @@ const Footer = () => {
                   <FaPhone className="text-yellow-400 flex-shrink-0" />
                   <div className="flex flex-col">
                     <span className="text-gray-300">+254 722 266 955</span>
-                    <span className="text-gray-300">+254 734 400 077</span>
+                    <span className="text-gray-300">+254 722609492</span>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
