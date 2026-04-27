@@ -11,16 +11,36 @@ import {
   FaPaperPlane,
   FaWhatsapp,
   FaDirections,
+  FaCheckCircle,
+  FaExclamationTriangle,
+  FaInfoCircle,
 } from "react-icons/fa";
 
 const Contact = () => {
   const [formData, setFormData] = useState({
-    name: "",
+    fullName: "",
     email: "",
     phone: "",
     subject: "",
     message: "",
   });
+
+  const [loading, setLoading] = useState(false);
+  const [notification, setNotification] = useState({
+    show: false,
+    type: "",
+    message: "",
+    contactId: "",
+  });
+
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+  const showNotification = (type, message, contactId = "") => {
+    setNotification({ show: true, type, message, contactId });
+    setTimeout(() => {
+      setNotification({ show: false, type: "", message: "", contactId: "" });
+    }, 8000);
+  };
 
   const handleChange = (e) => {
     setFormData({
@@ -29,29 +49,85 @@ const Contact = () => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Email form submission
-    console.log("Form submitted:", formData);
+    if (
+      !formData.fullName ||
+      !formData.email ||
+      !formData.subject ||
+      !formData.message
+    ) {
+      showNotification("error", "Please fill in all required fields.");
+      return;
+    }
 
-    // Construct email body
-    const emailBody = `Name: ${formData.name}%0D%0AEmail: ${formData.email}%0D%0APhone: ${formData.phone}%0D%0ASubject: ${formData.subject}%0D%0A%0D%0AMessage:%0D%0A${formData.message}`;
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(formData.email)) {
+      showNotification("error", "Please enter a valid email address.");
+      return;
+    }
 
-    // Open default email client
-    window.open(
-      `mailto:tembo4401@gmail.com?subject=${formData.subject}&body=${emailBody}`,
-      "_blank"
-    );
+    if (formData.message.length > 1000) {
+      showNotification(
+        "error",
+        "Message is too long. Please keep it under 1000 characters.",
+      );
+      return;
+    }
 
-    alert("Thank you for your message! We will get back to you soon.");
-    setFormData({
-      name: "",
-      email: "",
-      phone: "",
-      subject: "",
-      message: "",
-    });
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/send-contact`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fullName: formData.fullName,
+          email: formData.email,
+          phone: formData.phone || "Not provided",
+          subject: formData.subject,
+          message: formData.message,
+          type: "contact_form",
+          submittedAt: new Date().toISOString(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showNotification(
+          "success",
+          data.message ||
+            "Thank you for your message! We'll get back to you within 24 hours.",
+          data.contactId || "",
+        );
+
+        setFormData({
+          fullName: "",
+          email: "",
+          phone: "",
+          subject: "",
+          message: "",
+        });
+      } else {
+        showNotification(
+          "error",
+          data.error ||
+            "Failed to send message. Please try again or contact us directly at +254 722 266 955.",
+        );
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      showNotification(
+        "error",
+        "Network error. Please check your connection. If the problem persists, call us at +254 722 266 955 or email tembo4401@gmail.com.",
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const openWhatsAppDirect = () => {
@@ -59,7 +135,7 @@ const Contact = () => {
     const defaultMessage =
       "Hello Jozz Tembo Tours! I'm interested in your safari packages and would like more information.";
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(
-      defaultMessage
+      defaultMessage,
     )}`;
     window.open(whatsappUrl, "_blank");
   };
@@ -85,330 +161,488 @@ const Contact = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-blue-50 pt-20">
-      {/* Hero Section */}
-      <section
-        className="relative py-20 bg-cover bg-center"
-        style={{
-          backgroundImage:
-            'url("https://images.unsplash.com/photo-1544551763-46a013bb70d5?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80")',
-        }}
-      >
-        <div className="absolute inset-0 bg-black bg-opacity-40"></div>
-        <div className="relative z-10 max-w-7xl mx-auto px-4 text-center text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-amber-50 to-emerald-50 pt-16 sm:pt-20">
+      {/* Enhanced Notification Toast - Mobile Optimized */}
+      {notification.show && (
+        <motion.div
+          initial={{ opacity: 0, y: -100, x: "-50%" }}
+          animate={{ opacity: 1, y: 0, x: "-50%" }}
+          exit={{ opacity: 0, y: -100, x: "-50%" }}
+          className="fixed top-4 sm:top-20 left-1/2 z-50 flex items-start gap-3 sm:gap-4 px-4 sm:px-6 py-3 sm:py-5 rounded-2xl shadow-2xl backdrop-blur-sm bg-white/95 border w-[calc(100%-2rem)] sm:max-w-lg mx-auto"
+        >
+          <div
+            className={`flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${
+              notification.type === "success"
+                ? "bg-emerald-100 text-emerald-600"
+                : "bg-rose-100 text-rose-600"
+            }`}
+          >
+            {notification.type === "success" ? (
+              <FaCheckCircle className="text-lg sm:text-xl" />
+            ) : (
+              <FaExclamationTriangle className="text-lg sm:text-xl" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-gray-800 text-base sm:text-lg">
+              {notification.type === "success" ? "Message Sent!" : "Oops!"}
+            </p>
+            <p className="text-gray-600 mt-1 text-sm sm:text-base line-clamp-3">
+              {notification.message}
+            </p>
+            {notification.type === "success" && notification.contactId && (
+              <p className="text-xs text-gray-400 mt-2 font-mono bg-gray-50 px-2 py-1 rounded truncate">
+                Ref: {notification.contactId}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() =>
+              setNotification({
+                show: false,
+                type: "",
+                message: "",
+                contactId: "",
+              })
+            }
+            className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+            aria-label="Close notification"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </motion.div>
+      )}
+
+      {/* Hero Section - Mobile Optimized */}
+      <section className="relative py-16 sm:py-24 md:py-32 overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-b from-amber-900/90 via-stone-900/70 to-emerald-900/90 z-10" />
+          <img
+            src="https://images.unsplash.com/photo-1547471080-7cc2caa01a7e?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80"
+            alt="African landscape"
+            className="w-full h-full object-cover scale-105 animate-subtle-zoom"
+            loading="eager"
+          />
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTIwIDMwbDEwLTUgLTEwLTUgLTEwIDUgMTAgNXoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-50 z-20" />
+        </div>
+        <div className="relative z-30 max-w-7xl mx-auto px-4 sm:px-6 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md rounded-full px-4 sm:px-6 py-1.5 sm:py-2 mb-6 sm:mb-8 border border-white/20"
+          >
+            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+            <span className="text-white/90 text-xs sm:text-sm font-medium">
+              We're Available 24/7
+            </span>
+          </motion.div>
           <motion.h1
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="text-5xl md:text-6xl font-bold mb-6"
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="text-3xl sm:text-5xl md:text-7xl font-black text-white mb-4 sm:mb-6 tracking-tight"
           >
-            Contact Us
+            Let's Plan Your
+            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-emerald-400">
+              African Adventure
+            </span>
           </motion.h1>
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.8 }}
-            className="text-xl md:text-2xl max-w-3xl mx-auto"
+            transition={{ delay: 0.4, duration: 0.8 }}
+            className="text-base sm:text-lg md:text-xl text-white/80 max-w-2xl mx-auto leading-relaxed px-2"
           >
-            Ready for your African adventure? Get in touch with JozTembo Tours
-            and Safari
+            Your journey to the heart of Africa begins with a conversation.
+            Reach out to JozTembo Tours & Safari today.
           </motion.p>
         </div>
       </section>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12 -mt-12 sm:-mt-16 relative z-40">
         <motion.div
           variants={staggerContainer}
           initial="initial"
           whileInView="animate"
           viewport={{ once: true }}
-          className="grid lg:grid-cols-2 gap-12"
+          className="grid lg:grid-cols-5 gap-6 sm:gap-8"
         >
-          {/* Contact Information */}
-          <motion.div variants={fadeInUp} className="space-y-8">
-            <div>
-              <h2 className="text-3xl font-bold text-amber-900 mb-6">
-                Get In Touch
-              </h2>
-              <p className="text-gray-700 text-lg mb-8">
-                Have questions about our safari packages? Ready to book your
-                adventure? Our team is here to help you plan the perfect African
-                experience.
-              </p>
-            </div>
-
-            {/* Contact Details */}
-            <div className="space-y-6">
-              <div className="flex items-start space-x-4 p-4 bg-white rounded-lg shadow-md">
-                <div className="bg-amber-100 p-3 rounded-full">
-                  <FaMapMarkerAlt className="text-amber-600 text-xl" />
+          {/* Contact Information - 2 columns */}
+          <motion.div
+            variants={fadeInUp}
+            className="lg:col-span-2 space-y-4 sm:space-y-6"
+          >
+            <div className="bg-white/80 backdrop-blur-md rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-xl shadow-amber-900/5 border border-white/50">
+              <div className="flex items-center gap-3 mb-4 sm:mb-6">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+                  <FaMapMarkerAlt className="text-white text-lg sm:text-xl" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-800 text-lg">
-                    Our Location
-                  </h3>
-                  <p className="text-gray-600">Malindi, Lamu Road</p>
-                  <p className="text-gray-600">Kenya</p>
-                  <button
-                    onClick={openGoogleMaps}
-                    className="text-amber-600 hover:text-amber-700 text-sm font-medium mt-2 flex items-center space-x-1"
-                  >
-                    <FaDirections className="text-xs" />
-                    <span>Get Directions</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-4 p-4 bg-white rounded-lg shadow-md">
-                <div className="bg-amber-100 p-3 rounded-full">
-                  <FaPhone className="text-amber-600 text-xl" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-800 text-lg">
-                    Call Us
-                  </h3>
-                  <p className="text-gray-600">+254 722 266 955</p>
-                  <p className="text-gray-600">+254 734 400 077</p>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-4 p-4 bg-white rounded-lg shadow-md">
-                <div className="bg-green-100 p-3 rounded-full">
-                  <FaWhatsapp className="text-green-600 text-xl" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-800 text-lg">
-                    WhatsApp
-                  </h3>
-                  <p className="text-gray-600">+254 722 266 955</p>
-                  <p className="text-green-600 text-sm font-medium">
-                    Quick responses
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+                    Visit Us
+                  </h2>
+                  <p className="text-gray-500 text-xs sm:text-sm">
+                    Our Office Location
                   </p>
                 </div>
               </div>
+              <div className="bg-amber-50 rounded-xl sm:rounded-2xl p-4 sm:p-5 border border-amber-100">
+                <p className="font-semibold text-amber-900 text-base sm:text-lg">
+                  JozTembo Tours & Safari
+                </p>
+                <p className="text-gray-600 mt-1 text-sm sm:text-base">
+                  Malindi, Lamu Road
+                </p>
+                <p className="text-gray-600 text-sm sm:text-base">
+                  Kenya, East Africa
+                </p>
+                <button
+                  onClick={openGoogleMaps}
+                  className="mt-3 sm:mt-4 inline-flex items-center gap-2 bg-amber-600 text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-medium hover:bg-amber-700 transition-all duration-300 text-xs sm:text-sm shadow-lg shadow-amber-600/20 w-full sm:w-auto justify-center sm:justify-start"
+                >
+                  <FaDirections className="flex-shrink-0" />
+                  <span>Get Directions</span>
+                </button>
+              </div>
+            </div>
 
-              <div className="flex items-start space-x-4 p-4 bg-white rounded-lg shadow-md">
-                <div className="bg-amber-100 p-3 rounded-full">
-                  <FaEnvelope className="text-amber-600 text-xl" />
+            {/* Quick Contact Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 sm:gap-4">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="bg-white/80 backdrop-blur-md rounded-2xl p-4 sm:p-5 shadow-lg shadow-amber-900/5 border border-white/50 flex items-center gap-3 sm:gap-4 cursor-pointer active:bg-amber-50 transition-colors"
+                onClick={() => window.open("tel:+254722266955")}
+              >
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 flex-shrink-0">
+                  <FaPhone className="text-white text-base sm:text-lg" />
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-800 text-lg">
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm sm:text-base">
+                    Call Us Directly
+                  </p>
+                  <p className="text-gray-600 text-xs sm:text-sm truncate">
+                    +254 722 266 955
+                  </p>
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="bg-white/80 backdrop-blur-md rounded-2xl p-4 sm:p-5 shadow-lg shadow-amber-900/5 border border-white/50 flex items-center gap-3 sm:gap-4 cursor-pointer active:bg-emerald-50 transition-colors"
+                onClick={openWhatsAppDirect}
+              >
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 flex-shrink-0">
+                  <FaWhatsapp className="text-white text-base sm:text-lg" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm sm:text-base">
+                    Chat on WhatsApp
+                  </p>
+                  <p className="text-emerald-600 text-xs sm:text-sm font-medium">
+                    Quick Responses
+                  </p>
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                className="bg-white/80 backdrop-blur-md rounded-2xl p-4 sm:p-5 shadow-lg shadow-amber-900/5 border border-white/50 flex items-center gap-3 sm:gap-4"
+              >
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20 flex-shrink-0">
+                  <FaEnvelope className="text-white text-base sm:text-lg" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm sm:text-base">
                     Email Us
-                  </h3>
-                  <p className="text-gray-600">tembo4401@gmail.com</p>
-                  <p className="text-gray-600">info@jozztembotours.com</p>
+                  </p>
+                  <p className="text-gray-600 text-xs sm:text-sm truncate">
+                    tembo4401@gmail.com
+                  </p>
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="flex items-start space-x-4 p-4 bg-white rounded-lg shadow-md">
-                <div className="bg-amber-100 p-3 rounded-full">
-                  <FaClock className="text-amber-600 text-xl" />
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                className="bg-white/80 backdrop-blur-md rounded-2xl p-4 sm:p-5 shadow-lg shadow-amber-900/5 border border-white/50 flex items-center gap-3 sm:gap-4"
+              >
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20 flex-shrink-0">
+                  <FaClock className="text-white text-base sm:text-lg" />
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-800 text-lg">
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm sm:text-base">
                     Business Hours
-                  </h3>
-                  <p className="text-gray-600">
-                    Monday - Sunday: 6:00 AM - 10:00 PM
                   </p>
-                  <p className="text-gray-600">
-                    24/7 Emergency Support Available
+                  <p className="text-gray-600 text-xs sm:text-sm">
+                    Mon - Sun: 6:00 AM - 10:00 PM
+                  </p>
+                  <p className="text-amber-600 text-xs font-medium">
+                    24/7 Emergency Support
                   </p>
                 </div>
-              </div>
+              </motion.div>
             </div>
 
-            {/* Social Media */}
-            <div className="p-6 bg-amber-800 text-white rounded-lg">
-              <h3 className="text-xl font-semibold mb-4">
-                Follow Our Adventures
+            {/* Social Media Card */}
+            <div className="bg-gradient-to-br from-amber-700 to-amber-900 rounded-2xl sm:rounded-3xl p-5 sm:p-6 text-white shadow-xl shadow-amber-900/20">
+              <h3 className="text-lg sm:text-xl font-bold mb-1 sm:mb-2">
+                Follow Our Journey
               </h3>
-              <div className="flex space-x-4">
-                <a
-                  href="https://www.instagram.com/joztembotours/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bg-white bg-opacity-20 p-3 rounded-full hover:bg-opacity-30 transition-all duration-300"
-                >
-                  <FaInstagram className="text-xl" />
-                </a>
-                <a
-                  href="#"
-                  className="bg-white bg-opacity-20 p-3 rounded-full hover:bg-opacity-30 transition-all duration-300"
-                >
-                  <FaFacebook className="text-xl" />
-                </a>
-                <a
-                  href="#"
-                  className="bg-white bg-opacity-20 p-3 rounded-full hover:bg-opacity-30 transition-all duration-300"
-                >
-                  <FaTwitter className="text-xl" />
-                </a>
-                <a
-                  onClick={openWhatsAppDirect}
-                  className="bg-white bg-opacity-20 p-3 rounded-full hover:bg-opacity-30 transition-all duration-300 cursor-pointer"
-                >
-                  <FaWhatsapp className="text-xl" />
-                </a>
-              </div>
-            </div>
-
-            {/* Partnership Badge */}
-            <div className="p-4 bg-gray-100 rounded-lg border-l-4 border-amber-600">
-              <p className="text-gray-700">
-                <strong className="text-amber-800">Partnership:</strong> In
-                cooperation with{" "}
-                <span className="font-semibold">Cimo Service</span>
+              <p className="text-amber-200 text-xs sm:text-sm mb-4 sm:mb-5">
+                Stay updated with our latest adventures
               </p>
+              <div className="flex gap-2 sm:gap-3 flex-wrap">
+                {[
+                  {
+                    icon: FaInstagram,
+                    color: "hover:bg-pink-500",
+                    link: "https://www.instagram.com/joztembotours/",
+                  },
+                  { icon: FaFacebook, color: "hover:bg-blue-600", link: "#" },
+                  { icon: FaTwitter, color: "hover:bg-sky-500", link: "#" },
+                  {
+                    icon: FaWhatsapp,
+                    color: "hover:bg-emerald-500",
+                    action: openWhatsAppDirect,
+                  },
+                ].map((social, index) => (
+                  <motion.a
+                    key={index}
+                    href={social.link || "#"}
+                    target={social.link ? "_blank" : undefined}
+                    rel={social.link ? "noopener noreferrer" : undefined}
+                    onClick={social.action}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    className={`w-10 h-10 sm:w-11 sm:h-11 bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center transition-all duration-300 ${social.color} cursor-pointer`}
+                  >
+                    <social.icon className="text-base sm:text-lg" />
+                  </motion.a>
+                ))}
+              </div>
             </div>
           </motion.div>
 
-          {/* Contact Form */}
-          <motion.div
-            variants={fadeInUp}
-            className="bg-white rounded-2xl p-8 shadow-xl"
-          >
-            <h2 className="text-3xl font-bold text-amber-900 mb-2">
-              Send us a Message
-            </h2>
-            <p className="text-gray-600 mb-8">
-              We typically respond within 2 hours
-            </p>
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <label
-                    htmlFor="name"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-300"
-                    placeholder="Your full name"
-                  />
+          {/* Contact Form - 3 columns */}
+          <motion.div variants={fadeInUp} className="lg:col-span-3">
+            <div className="bg-white/90 backdrop-blur-md rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-10 shadow-2xl shadow-amber-900/10 border border-white/50">
+              <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+                <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+                  <FaPaperPlane className="text-white text-lg sm:text-xl" />
                 </div>
                 <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-300"
-                    placeholder="your@email.com"
-                  />
+                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                    Send a Message
+                  </h2>
+                  <p className="text-gray-500 text-xs sm:text-sm">
+                    We'll respond within 24 hours
+                  </p>
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <label
-                    htmlFor="phone"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    id="phone"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-300"
-                    placeholder="+254 XXX XXX XXX"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="subject"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    Subject *
-                  </label>
-                  <select
-                    id="subject"
-                    name="subject"
-                    value={formData.subject}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-300"
-                  >
-                    <option value="">Select a subject</option>
-                    <option value="safari-booking">Safari Booking</option>
-                    <option value="beach-tour">Beach Tour</option>
-                    <option value="custom-package">Custom Package</option>
-                    <option value="airport-transfer">Airport Transfer</option>
-                    <option value="general-inquiry">General Inquiry</option>
-                    <option value="partnership">Partnership</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="message"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Message *
-                </label>
-                <textarea
-                  id="message"
-                  name="message"
-                  value={formData.message}
-                  onChange={handleChange}
-                  required
-                  rows="6"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-300"
-                  placeholder="Tell us about your dream African adventure..."
-                ></textarea>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-4 px-6 rounded-lg font-semibold text-lg bg-amber-600 text-white hover:bg-amber-700 transition-all duration-300 flex items-center justify-center space-x-2"
-              >
-                <span>Send Message via Email</span>
-                <FaEnvelope />
-              </button>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <FaEnvelope className="text-blue-600 mt-1 flex-shrink-0" />
-                  <div>
-                    <p className="text-blue-800 text-sm font-medium">
-                      Email Message
-                    </p>
-                    <p className="text-blue-700 text-sm">
-                      Your message will be sent to{" "}
-                      <strong>tembo4401@gmail.com</strong> via your default
-                      email client.
-                    </p>
+              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+                <div className="grid sm:grid-cols-2 gap-4 sm:gap-5">
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <label
+                      htmlFor="fullName"
+                      className="block text-sm font-semibold text-gray-700"
+                    >
+                      Full Name <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id="fullName"
+                      name="fullName"
+                      value={formData.fullName}
+                      onChange={handleChange}
+                      required
+                      disabled={loading}
+                      className="w-full px-4 py-3 sm:py-3.5 bg-gray-50 border-2 border-gray-100 rounded-xl sm:rounded-2xl focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10 transition-all duration-300 disabled:opacity-50 outline-none text-gray-900 placeholder-gray-400 text-sm sm:text-base"
+                      placeholder="John Doe"
+                    />
+                  </div>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <label
+                      htmlFor="email"
+                      className="block text-sm font-semibold text-gray-700"
+                    >
+                      Email Address <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      required
+                      disabled={loading}
+                      className="w-full px-4 py-3 sm:py-3.5 bg-gray-50 border-2 border-gray-100 rounded-xl sm:rounded-2xl focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10 transition-all duration-300 disabled:opacity-50 outline-none text-gray-900 placeholder-gray-400 text-sm sm:text-base"
+                      placeholder="john@example.com"
+                    />
                   </div>
                 </div>
-              </div>
 
-              <p className="text-center text-gray-500 text-sm">
-                * Required fields. We respect your privacy and will never share
-                your information.
-              </p>
-            </form>
+                <div className="grid sm:grid-cols-2 gap-4 sm:gap-5">
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <label
+                      htmlFor="phone"
+                      className="block text-sm font-semibold text-gray-700"
+                    >
+                      Phone Number{" "}
+                      <span className="text-gray-400 text-xs font-normal">
+                        (Optional)
+                      </span>
+                    </label>
+                    <input
+                      type="tel"
+                      id="phone"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      disabled={loading}
+                      className="w-full px-4 py-3 sm:py-3.5 bg-gray-50 border-2 border-gray-100 rounded-xl sm:rounded-2xl focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10 transition-all duration-300 disabled:opacity-50 outline-none text-gray-900 placeholder-gray-400 text-sm sm:text-base"
+                      placeholder="+254 700 000 000"
+                    />
+                  </div>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <label
+                      htmlFor="subject"
+                      className="block text-sm font-semibold text-gray-700"
+                    >
+                      Subject <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      id="subject"
+                      name="subject"
+                      value={formData.subject}
+                      onChange={handleChange}
+                      required
+                      disabled={loading}
+                      className="w-full px-4 py-3 sm:py-3.5 bg-gray-50 border-2 border-gray-100 rounded-xl sm:rounded-2xl focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10 transition-all duration-300 disabled:opacity-50 outline-none text-gray-900 text-sm sm:text-base appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23131313%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:0.65rem] bg-[right_1rem_center] bg-no-repeat"
+                    >
+                      <option value="">Select a subject</option>
+                      <option value="Safari Booking">🏕️ Safari Booking</option>
+                      <option value="Beach Tour">🏖️ Beach Tour</option>
+                      <option value="Custom Package">🎯 Custom Package</option>
+                      <option value="Airport Transfer">
+                        🚗 Airport Transfer
+                      </option>
+                      <option value="General Inquiry">
+                        💬 General Inquiry
+                      </option>
+                      <option value="Partnership">🤝 Partnership</option>
+                      <option value="Feedback">📝 Feedback</option>
+                      <option value="Other">📌 Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 sm:space-y-2">
+                  <label
+                    htmlFor="message"
+                    className="block text-sm font-semibold text-gray-700"
+                  >
+                    Your Message <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    id="message"
+                    name="message"
+                    value={formData.message}
+                    onChange={handleChange}
+                    required
+                    rows="4"
+                    maxLength="1000"
+                    disabled={loading}
+                    className="w-full px-4 py-3 sm:py-3.5 bg-gray-50 border-2 border-gray-100 rounded-xl sm:rounded-2xl focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10 transition-all duration-300 disabled:opacity-50 outline-none text-gray-900 placeholder-gray-400 resize-none text-sm sm:text-base"
+                    placeholder="Tell us about your dream African adventure..."
+                  />
+                  <div className="flex justify-between items-center">
+                    <span
+                      className={`text-xs ${formData.message.length > 900 ? "text-amber-600" : "text-gray-400"}`}
+                    >
+                      {formData.message.length}/1000 characters
+                    </span>
+                    {formData.message.length > 900 && (
+                      <span className="text-xs text-amber-600 font-medium">
+                        Approaching limit
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3.5 sm:py-4 bg-gradient-to-r from-amber-600 to-amber-700 text-white rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg hover:from-amber-700 hover:to-amber-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-amber-600/20 hover:shadow-2xl hover:shadow-amber-600/30 flex items-center justify-center gap-2 sm:gap-3 group"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+                      <span>Sending Message...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Send Message</span>
+                      <FaPaperPlane className="text-base sm:text-lg group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
+                </button>
+
+                {/* Process Info Card */}
+                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl sm:rounded-2xl p-4 sm:p-5 border border-blue-100">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <FaInfoCircle className="text-blue-600 text-sm sm:text-base" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-blue-900 text-sm sm:text-base">
+                        What happens next?
+                      </p>
+                      <ul className="text-blue-700 text-xs sm:text-sm mt-2 space-y-1.5">
+                        <li className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 bg-blue-400 rounded-full flex-shrink-0"></span>
+                          <span>Your message goes directly to our team</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 bg-blue-400 rounded-full flex-shrink-0"></span>
+                          <span>You'll receive a confirmation email</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 bg-blue-400 rounded-full flex-shrink-0"></span>
+                          <span>We typically respond within 24 hours</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 bg-blue-400 rounded-full flex-shrink-0"></span>
+                          <span>
+                            For urgent inquiries, call +254 722 266 955
+                          </span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-center text-gray-400 text-xs">
+                  <span className="text-rose-500">*</span> Required fields • We
+                  respect your privacy and never share your information
+                </p>
+              </form>
+            </div>
           </motion.div>
         </motion.div>
 
@@ -418,29 +652,28 @@ const Contact = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="mt-16"
+          className="mt-12 sm:mt-16"
         >
-          <div className="bg-white rounded-2xl p-8 shadow-xl">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+          <div className="bg-white/90 backdrop-blur-md rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-2xl shadow-amber-900/10 border border-white/50">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-6 mb-6 sm:mb-8">
               <div>
-                <h2 className="text-3xl font-bold text-amber-900">
+                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
                   Find Us in Malindi
                 </h2>
-                <p className="text-gray-600 mt-2">
+                <p className="text-gray-500 mt-1 text-sm sm:text-base">
                   Visit our office along Lamu Road
                 </p>
               </div>
               <button
                 onClick={openGoogleMaps}
-                className="bg-amber-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-amber-700 transition-all duration-300 flex items-center space-x-2 mt-4 md:mt-0"
+                className="inline-flex items-center gap-2 bg-amber-600 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold hover:bg-amber-700 transition-all duration-300 shadow-lg shadow-amber-600/20 text-sm sm:text-base w-full sm:w-auto justify-center"
               >
                 <FaDirections />
                 <span>Get Directions</span>
               </button>
             </div>
 
-            {/* Google Maps Embed */}
-            <div className="rounded-lg overflow-hidden shadow-lg h-96">
+            <div className="rounded-xl sm:rounded-2xl overflow-hidden shadow-lg h-[300px] sm:h-[400px] border-4 border-white">
               <iframe
                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3977.228885599999!2d40.1148882745991!3d-3.211499096661246!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x18158fb3cbf5d3cb%3A0x149738b4de67d28f!2sJoss%20%26%20Tembo%20Tours%20%26%20Safaris!5e0!3m2!1sen!2ske!4v1700000000000!5m2!1sen!2ske"
                 width="100%"
@@ -450,81 +683,113 @@ const Contact = () => {
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
                 title="Jozz Tembo Tours and Safari Location"
-                className="w-full h-full"
-              ></iframe>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-              <div className="p-4 bg-amber-50 rounded-lg">
-                <FaMapMarkerAlt className="text-amber-600 text-xl mx-auto mb-2" />
-                <p className="font-semibold text-amber-800">Location</p>
-                <p className="text-gray-600 text-sm">Malindi, Lamu Road</p>
-              </div>
-              <div className="p-4 bg-amber-50 rounded-lg">
-                <FaClock className="text-amber-600 text-xl mx-auto mb-2" />
-                <p className="font-semibold text-amber-800">Open Hours</p>
-                <p className="text-gray-600 text-sm">6:00 AM - 10:00 PM</p>
-              </div>
-              <div className="p-4 bg-amber-50 rounded-lg">
-                <FaPhone className="text-amber-600 text-xl mx-auto mb-2" />
-                <p className="font-semibold text-amber-800">Call Ahead</p>
-                <p className="text-gray-600 text-sm">+254 722 266 955</p>
-              </div>
+              />
             </div>
           </div>
         </motion.section>
 
         {/* CTA Section */}
         <motion.section
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="text-center mt-16 bg-gradient-to-r from-amber-600 to-amber-800 rounded-2xl p-12 text-white"
+          className="mt-12 sm:mt-16 text-center relative overflow-hidden rounded-2xl sm:rounded-3xl"
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Ready to Start Your Adventure?
-          </h2>
-          <p className="text-xl mb-6 opacity-90">
-            Contact us today and let's plan your unforgettable African safari
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a
-              href="tel:+254722266955"
-              className="bg-white text-amber-700 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-amber-50 transition-all duration-300"
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-600 via-amber-700 to-emerald-800" />
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48Y2lyY2xlIGN4PSIzMCIgY3k9IjMwIiByPSIyIi8+PC9nPjwvZz48L3N2Zz4=')] opacity-50" />
+          <div className="relative z-10 px-6 sm:px-8 py-12 sm:py-16 md:py-20">
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              className="text-3xl sm:text-4xl md:text-5xl font-black text-white mb-3 sm:mb-4"
             >
-              Call Now: +254 722 266 955
-            </a>
-            <button
-              onClick={openWhatsAppDirect}
-              className="bg-green-600 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-green-700 transition-all duration-300 flex items-center justify-center space-x-2"
+              Ready to Start Your Adventure?
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="text-lg sm:text-xl text-white/80 mb-8 sm:mb-10 max-w-2xl mx-auto"
             >
-              <FaWhatsapp />
-              <span>Chat on WhatsApp</span>
-            </button>
-            <button
-              onClick={openGoogleMaps}
-              className="bg-amber-900 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-amber-800 transition-all duration-300 flex items-center justify-center space-x-2"
+              Let's create memories that will last a lifetime in the heart of
+              Africa
+            </motion.p>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center"
             >
-              <FaDirections />
-              <span>Get Directions</span>
-            </button>
+              <a
+                href="tel:+254722266955"
+                className="inline-flex items-center gap-2 bg-white text-amber-700 px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl font-bold text-base sm:text-lg hover:bg-amber-50 transition-all duration-300 shadow-xl hover:shadow-2xl w-full sm:w-auto justify-center"
+              >
+                <FaPhone />
+                Call Now
+              </a>
+              <button
+                onClick={openWhatsAppDirect}
+                className="inline-flex items-center gap-2 bg-emerald-500 text-white px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl font-bold text-base sm:text-lg hover:bg-emerald-600 transition-all duration-300 shadow-xl hover:shadow-2xl shadow-emerald-500/20 w-full sm:w-auto justify-center"
+              >
+                <FaWhatsapp />
+                Chat on WhatsApp
+              </button>
+              <button
+                onClick={openGoogleMaps}
+                className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm text-white px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl font-bold text-base sm:text-lg hover:bg-white/30 transition-all duration-300 border-2 border-white/30 w-full sm:w-auto justify-center"
+              >
+                <FaDirections />
+                Get Directions
+              </button>
+            </motion.div>
           </div>
         </motion.section>
       </div>
 
-      {/* Floating WhatsApp Button */}
-      <div className="fixed bottom-6 right-6 z-50">
+      {/* Floating WhatsApp Button - Mobile Optimized */}
+      <motion.div
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 1, duration: 0.5, type: "spring" }}
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50"
+      >
         <motion.button
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 1, duration: 0.5 }}
           onClick={openWhatsAppDirect}
-          className="bg-green-600 text-white p-4 rounded-full shadow-2xl hover:bg-green-700 transition-all duration-300 hover:scale-110"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white p-3.5 sm:p-4 rounded-2xl shadow-2xl hover:shadow-emerald-500/30 transition-all duration-300 relative group"
+          aria-label="Chat on WhatsApp"
         >
-          <FaWhatsapp className="text-2xl" />
+          <FaWhatsapp className="text-xl sm:text-2xl" />
+          <span className="absolute -top-8 right-0 bg-white text-gray-900 text-xs font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg whitespace-nowrap pointer-events-none">
+            Quick Chat
+          </span>
         </motion.button>
-      </div>
+      </motion.div>
+
+      <style jsx>{`
+        @keyframes subtle-zoom {
+          0%,
+          100% {
+            transform: scale(1.05);
+          }
+          50% {
+            transform: scale(1.1);
+          }
+        }
+        .animate-subtle-zoom {
+          animation: subtle-zoom 20s ease-in-out infinite;
+        }
+
+        /* Custom line clamp for older browsers */
+        .line-clamp-3 {
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+      `}</style>
     </div>
   );
 };
