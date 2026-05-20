@@ -338,6 +338,10 @@ const Contact = () => {
                   <p className="text-gray-600 text-xs sm:text-sm truncate">
                     +254 722 266 955
                   </p>
+                
+                  <p className="text-gray-600 text-xs sm:text-sm truncate">
+                    +254 722 609 492
+                  </p>
                 </div>
               </motion.div>
 
@@ -629,7 +633,8 @@ const Contact = () => {
                         <li className="flex items-center gap-2">
                           <span className="w-1.5 h-1.5 bg-blue-400 rounded-full flex-shrink-0"></span>
                           <span>
-                            For urgent inquiries, call +254 722 266 955
+                            For urgent inquiries, <span>+254722 609492</span>
+                            or <span>+254 722 266 955</span>
                           </span>
                         </li>
                       </ul>

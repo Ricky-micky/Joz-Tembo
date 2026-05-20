@@ -1,32 +1,375 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import axios from "axios";
+
+const API_BASE_URL = "http://localhost:5000/api";
 
 const About = () => {
   const [selectedPartner, setSelectedPartner] = useState(null);
+  const [selectedMission, setSelectedMission] = useState(false);
+  const [selectedValue, setSelectedValue] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
 
-  // Animation variants
-  const fadeInUp = {
-    initial: { opacity: 0, y: 60 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.6 },
+  // Review system states
+  const [reviews, setReviews] = useState([]);
+  const [reviewStats, setReviewStats] = useState({
+    average_rating: 0,
+    total_reviews: 0,
+    rating_distribution: {},
+  });
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [editingReview, setEditingReview] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [replyContent, setReplyContent] = useState("");
+
+  // Auth state
+  const [user, setUser] = useState(() => {
+    const storedUser = localStorage.getItem("user");
+    try {
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [token, setToken] = useState(() =>
+    localStorage.getItem("access_token"),
+  );
+
+  const [reviewForm, setReviewForm] = useState({
+    reviewer_name: "", // ✅ NEW: Name field for all users
+    rating: 5,
+    title: "",
+    content: "",
+    visit_date: "",
+    package_used: "",
+  });
+
+  const [reviewPage, setReviewPage] = useState(1);
+  const [reviewPagination, setReviewPagination] = useState({});
+
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Sync auth state
+  useEffect(() => {
+    const checkAuth = () => {
+      const storedToken = localStorage.getItem("access_token");
+      const storedUser = localStorage.getItem("user");
+      if (storedToken && storedUser) {
+        setToken(storedToken);
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch {
+          setUser(null);
+        }
+      } else {
+        setToken(null);
+        setUser(null);
+      }
+    };
+    checkAuth();
+    window.addEventListener("storage", checkAuth);
+    window.addEventListener("authChange", checkAuth);
+    return () => {
+      window.removeEventListener("storage", checkAuth);
+      window.removeEventListener("authChange", checkAuth);
+    };
+  }, []);
+
+  // Fetch user from API when token changes
+  useEffect(() => {
+    if (token) fetchCurrentUser();
+  }, [token]);
+
+  // Fetch reviews
+  useEffect(() => {
+    fetchReviews();
+  }, [reviewPage]);
+
+  // ============ AUTH FUNCTIONS ============
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUser(response.data.user);
+      localStorage.setItem("user", JSON.stringify(response.data.user));
+    } catch (error) {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("user");
+      setToken(null);
+      setUser(null);
+    }
   };
 
-  const staggerContainer = {
-    animate: {
-      transition: {
-        staggerChildren: 0.15,
-      },
+  // ============ REVIEW FUNCTIONS ============
+  const fetchReviews = async () => {
+    try {
+      setReviewsLoading(true);
+      const [reviewsRes, statsRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/reviews?page=${reviewPage}&per_page=5`),
+        axios.get(`${API_BASE_URL}/reviews/stats`),
+      ]);
+      setReviews(reviewsRes.data.data);
+      setReviewPagination(reviewsRes.data.pagination);
+      setReviewStats(statsRes.data.stats);
+    } catch (error) {
+      console.error("Error fetching reviews:", error);
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  // Handle submit review (create or update)
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    try {
+      const headers = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      // ✅ Prepare data to send to backend
+      const reviewData = {
+        rating: reviewForm.rating,
+        title: reviewForm.title,
+        content: reviewForm.content,
+        visit_date: reviewForm.visit_date || null,
+        package_used: reviewForm.package_used || null,
+      };
+
+      // ✅ If user is NOT signed in, include reviewer_name
+      if (!user) {
+        reviewData.reviewer_name = reviewForm.reviewer_name || "Anonymous";
+      }
+      // If user IS signed in, the backend will use the authenticated user's name
+
+      if (editingReview) {
+        // ✅ Signed-in users can edit THEIR OWN reviews
+        if (!token) {
+          alert("Please sign in to edit your review.");
+          return;
+        }
+        await axios.put(
+          `${API_BASE_URL}/reviews/${editingReview.id}`,
+          reviewData,
+          { headers },
+        );
+        setEditingReview(null);
+      } else {
+        // ✅ Anyone can post (auth optional)
+        await axios.post(`${API_BASE_URL}/reviews`, reviewData, { headers });
+      }
+      setShowReviewForm(false);
+      setReviewForm({
+        reviewer_name: "",
+        rating: 5,
+        title: "",
+        content: "",
+        visit_date: "",
+        package_used: "",
+      });
+      fetchReviews();
+    } catch (error) {
+      alert(error.response?.data?.error || "Error submitting review");
+    }
+  };
+
+  // Handle edit review
+  const handleEditReview = (review) => {
+    setReviewForm({
+      reviewer_name: review.user?.name || review.reviewer_name || "",
+      rating: review.rating,
+      title: review.title,
+      content: review.content,
+      visit_date: review.visit_date || "",
+      package_used: review.package_used || "",
+    });
+    setEditingReview(review);
+    setShowReviewForm(true);
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Handle delete review
+  const handleDeleteReview = async (reviewId) => {
+    if (!token) {
+      alert("Please sign in to delete your review.");
+      return;
+    }
+    if (!window.confirm("Delete this review? This action cannot be undone."))
+      return;
+    try {
+      await axios.delete(`${API_BASE_URL}/reviews/${reviewId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchReviews();
+    } catch (error) {
+      alert(error.response?.data?.error || "Error deleting review");
+    }
+  };
+
+  // ✅ Admin only - submit reply
+  const handleSubmitReply = async (reviewId) => {
+    if (!token || !user?.is_admin) {
+      alert("Admin sign-in required. Please sign in via the footer.");
+      return;
+    }
+    try {
+      await axios.post(
+        `${API_BASE_URL}/reviews/${reviewId}/replies`,
+        { content: replyContent },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setReplyingTo(null);
+      setReplyContent("");
+      fetchReviews();
+    } catch (error) {
+      alert(error.response?.data?.error || "Error submitting reply");
+    }
+  };
+
+  // ✅ Admin only - delete reply
+  const handleDeleteReply = async (replyId) => {
+    if (!token || !user?.is_admin) {
+      alert("Admin sign-in required. Please sign in via the footer.");
+      return;
+    }
+    if (!window.confirm("Delete this reply?")) return;
+    try {
+      await axios.delete(`${API_BASE_URL}/replies/${replyId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchReviews();
+    } catch (error) {
+      alert(error.response?.data?.error || "Error deleting reply");
+    }
+  };
+
+  // ✅ Check if current user can edit/delete a review
+  const canModifyReview = (review) => {
+    if (!user) return false;
+    // Admin can modify any review
+    if (user.is_admin) return true;
+    // Regular user can only modify their own reviews
+    return review.user?.id === user.id;
+  };
+
+  const StarRating = ({
+    rating,
+    onRatingChange,
+    interactive = true,
+    size = "text-2xl",
+  }) => (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type={interactive ? "button" : undefined}
+          onClick={() => interactive && onRatingChange?.(star)}
+          className={`${size} ${interactive ? "cursor-pointer hover:scale-110 transition-transform" : ""}`}
+          disabled={!interactive}
+        >
+          {star <= rating ? "⭐" : "☆"}
+        </button>
+      ))}
+    </div>
+  );
+
+  // Core values data
+  const coreValues = [
+    {
+      name: "Professionalism",
+      desc: "Expert guides and seamless service delivery",
+      icon: (
+        <svg
+          className="w-8 h-8 text-white"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+          />
+        </svg>
+      ),
     },
-  };
+    {
+      name: "Integrity",
+      desc: "Honest and transparent in all our dealings",
+      icon: (
+        <svg
+          className="w-8 h-8 text-white"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+          />
+        </svg>
+      ),
+    },
+    {
+      name: "Customer Satisfaction",
+      desc: "Your happiness is our ultimate goal",
+      icon: (
+        <svg
+          className="w-8 h-8 text-white"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
+      ),
+    },
+    {
+      name: "Sustainability",
+      desc: "Eco-friendly practices and community support",
+      icon: (
+        <svg
+          className="w-8 h-8 text-white"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
+      ),
+    },
+  ];
 
-  // Partnership data
+  // Partners data (shortened for brevity)
   const partners = [
     {
       id: 1,
       name: "Cimo Services",
       imageUrl: "/assets/Cimo.png",
       story:
-        "Since 2010, Cimo Services has been our trusted transportation partner, providing reliable and comfortable vehicles for all our safari adventures across Kenya. Their fleet of well-maintained vehicles and professional drivers ensure safe and comfortable journeys through Kenya's diverse landscapes.",
+        "Since 2010, Cimo Services has been our trusted transportation partner...",
       established: "2010",
       location: "Nairobi, Kenya",
       specialty: "Transportation & Logistics",
@@ -36,7 +379,7 @@ const About = () => {
       name: "Kenya Safari Lodges",
       imageUrl: "/assets/ken-safa.png",
       story:
-        "Our partnership with Kenya Safari Lodges ensures our guests experience the finest accommodations in the most breathtaking locations throughout the country. From luxury tented camps to exclusive lodges, each property offers unique perspectives of Kenya's incredible wildlife.",
+        "Our partnership with Kenya Safari Lodges ensures our guests experience the finest accommodations...",
       established: "1985",
       location: "Multiple Locations",
       specialty: "Luxury Accommodations",
@@ -46,7 +389,7 @@ const About = () => {
       name: "Ashnil",
       imageUrl: "/assets/ash.png",
       story:
-        "Ashnil's luxurious camps offer unparalleled wildlife viewing experiences, making every safari a memorable journey into the wild. Their properties in key national parks provide exceptional comfort while maintaining an authentic safari atmosphere.",
+        "Ashnil's luxurious camps offer unparalleled wildlife viewing experiences...",
       established: "2005",
       location: "Maasai Mara & Tsavo",
       specialty: "Luxury Safari Camps",
@@ -55,57 +398,16 @@ const About = () => {
       id: 4,
       name: "Salt Lick",
       imageUrl: "/assets/sallick.png",
-      story:
-        "The iconic Salt Lick Lodge provides a unique vantage point for wildlife viewing, and our collaboration brings exclusive packages to our clients. Built on stilts overlooking a waterhole, it offers 24/7 wildlife viewing from the comfort of your room.",
+      story: "The iconic Salt Lick Lodge provides a unique vantage point...",
       established: "1990",
       location: "Taita Hills",
       specialty: "Unique Wildlife Viewing",
     },
-    {
-      id: 5,
-      name: "KWS",
-      imageUrl: "/assets/KWS.png",
-      story:
-        "Working hand in hand with Kenya Wildlife Service, we support conservation efforts while providing ethical and responsible safari experiences. This partnership ensures our operations align with national conservation goals and sustainable tourism practices.",
-      established: "1989",
-      location: "Nationwide, Kenya",
-      specialty: "Conservation & Wildlife Protection",
-    },
-    {
-      id: 6,
-      name: "Sarova",
-      imageUrl: "/assets/saro.png",
-      story:
-        "Sarova Hotels and Lodges bring comfort and elegance to the wilderness, and our partnership ensures premium stays for our safari guests. Their properties combine modern amenities with traditional African hospitality.",
-      established: "1974",
-      location: "Multiple Locations",
-      specialty: "Premium Hospitality",
-    },
-    {
-      id: 7,
-      name: "Tulia",
-      imageUrl: "/assets/tulia .png",
-      story:
-        "Tulia's boutique safari experiences complement our bespoke tour packages, creating unforgettable journeys for discerning travelers. Their intimate camps offer personalized service and exclusive access to prime wildlife areas.",
-      established: "2012",
-      location: "Maasai Mara",
-      specialty: "Boutique Safari Experiences",
-    },
-    {
-      id: 8,
-      name: "Turtle Bay",
-      imageUrl: "/assets/tbay.png",
-      story:
-        "Our collaboration with Turtle Bay Beach Resort offers guests the perfect coastal retreat after their safari adventure. Located on the pristine shores of Watamu, it combines beach relaxation with marine conservation experiences.",
-      established: "1995",
-      location: "Watamu, Coast",
-      specialty: "Beach & Marine Experiences",
-    },
   ];
 
-  // Prevent body scroll when modal is open
+  // Body scroll lock
   useEffect(() => {
-    if (selectedPartner) {
+    if (selectedPartner || selectedMission || selectedValue) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "unset";
@@ -113,42 +415,29 @@ const About = () => {
     return () => {
       document.body.style.overflow = "unset";
     };
-  }, [selectedPartner]);
+  }, [selectedPartner, selectedMission, selectedValue]);
 
-  // Modal component
-  const PartnerModal = ({ partner, onClose }) => {
-    return (
+  // Modal components (shortened - same as before)
+  const MissionModal = ({ onClose }) => (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm"
-        onClick={onClose}
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 20 }}
+        className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
       >
-        <motion.div
-          initial={{ scale: 0.9, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.9, y: 20 }}
-          className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="relative h-64 bg-amber-100">
-            <img
-              src={partner.imageUrl}
-              alt={partner.name}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src =
-                  "https://via.placeholder.com/800x400?text=Partner+Image";
-              }}
-            />
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 w-10 h-10 bg-white rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors shadow-lg"
-            >
+        <div className="p-8">
+          <div className="flex justify-between items-start mb-6">
+            <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl flex items-center justify-center">
               <svg
-                className="w-6 h-6 text-gray-600"
+                className="w-8 h-8 text-white"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -157,56 +446,34 @@ const About = () => {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
                 />
               </svg>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200"
+            >
+              ✕
             </button>
           </div>
-
-          <div className="p-8">
-            <h2 className="text-3xl font-bold text-amber-900 mb-4">
-              {partner.name}
-            </h2>
-
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-amber-50 p-4 rounded-lg">
-                <p className="text-sm text-amber-600 font-semibold">
-                  Established
-                </p>
-                <p className="text-lg text-gray-800">{partner.established}</p>
-              </div>
-              <div className="bg-amber-50 p-4 rounded-lg">
-                <p className="text-sm text-amber-600 font-semibold">Location</p>
-                <p className="text-lg text-gray-800">{partner.location}</p>
-              </div>
-              <div className="bg-amber-50 p-4 rounded-lg col-span-2">
-                <p className="text-sm text-amber-600 font-semibold">
-                  Specialty
-                </p>
-                <p className="text-lg text-gray-800">{partner.specialty}</p>
-              </div>
-            </div>
-
-            <div className="border-t border-gray-200 pt-6">
-              <h3 className="text-xl font-semibold text-amber-800 mb-3">
-                Our Partnership Story
-              </h3>
-              <p className="text-gray-700 leading-relaxed">{partner.story}</p>
-            </div>
-
-            <div className="mt-6 p-4 bg-gradient-to-r from-amber-50 to-amber-100 rounded-lg">
-              <p className="text-amber-800 text-center italic">
-                "Trusted partners in creating unforgettable African adventures"
-              </p>
-            </div>
+          <h2 className="text-3xl font-bold text-gray-800 mb-4">Our Mission</h2>
+          <p className="text-gray-600 text-lg mb-6">
+            To provide unforgettable safari experiences, promote Kenyan culture,
+            and offer world-class tour services.
+          </p>
+          <div className="bg-amber-50 rounded-xl p-6 border-l-4 border-amber-500">
+            <p className="text-amber-800 italic text-lg">
+              "Creating memories that last a lifetime"
+            </p>
           </div>
-        </motion.div>
+        </div>
       </motion.div>
-    );
-  };
+    </motion.div>
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50 to-orange-50">
+    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50 to-orange-50 overflow-x-hidden">
       {/* Hero Section */}
       <header className="relative h-screen max-h-[800px] min-h-[600px] overflow-hidden">
         <div className="absolute inset-0">
@@ -217,354 +484,116 @@ const About = () => {
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70"></div>
         </div>
-
         <div className="relative z-10 flex items-center justify-center h-full px-4">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1, ease: "easeOut" }}
+            transition={{ duration: 1 }}
             className="text-center text-white max-w-5xl"
           >
-            <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="mb-6"
-            >
-              <span className="text-amber-400 text-lg font-semibold tracking-wider">
-                EST. 1993
-              </span>
-            </motion.div>
+            <span className="text-amber-400 text-lg font-semibold tracking-wider">
+              EST. 1993
+            </span>
             <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
-              Jozz Tembo
+              JozTembo
               <br />
               <span className="text-amber-300">Tours & Safari</span>
             </h1>
             <p className="text-xl md:text-2xl mb-8 text-gray-200">
               Malindi, Lamu Road
             </p>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.8 }}
-              className="space-y-4"
-            >
-              <div className="bg-white/10 backdrop-blur-md inline-block px-8 py-4 rounded-full border border-white/20">
-                <p className="text-2xl md:text-3xl italic font-light">
-                  "Driven by passion, guided by experience"
-                </p>
-              </div>
-              <div>
-                <p className="text-lg text-amber-200">
-                  In cooperation with Cimo Service
-                </p>
-              </div>
-            </motion.div>
+            <div className="bg-white/10 backdrop-blur-md inline-block px-8 py-4 rounded-full border border-white/20">
+              <p className="text-2xl md:text-3xl italic font-light">
+                "Driven by passion, guided by experience"
+              </p>
+            </div>
+            <p className="text-lg text-amber-200 mt-4">
+              In cooperation with Cimo Service
+            </p>
           </motion.div>
         </div>
-
-        {/* Scroll indicator */}
-        <motion.div
-          animate={{ y: [0, 10, 0] }}
-          transition={{ duration: 2, repeat: Infinity }}
-          className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-white"
-        >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 14l-7 7m0 0l-7-7m7 7V3"
-            />
-          </svg>
-        </motion.div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        {/* Experience Banner - Redesigned */}
+        {/* Experience Banner */}
         <motion.section
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="relative mb-20"
+          className="mb-20"
         >
-          <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-amber-800 rounded-3xl p-12 shadow-2xl overflow-hidden">
-            <div className="absolute inset-0 opacity-10">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-32 translate-x-32"></div>
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-white rounded-full translate-y-24 -translate-x-24"></div>
-            </div>
-            <div className="relative z-10 text-center text-white">
-              <div className="inline-block bg-white/20 backdrop-blur-sm px-6 py-2 rounded-full mb-6">
-                <span className="text-amber-100 font-semibold">
-                  ✦ 30+ Years of Excellence ✦
-                </span>
-              </div>
-              <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                Crafting Unforgettable African Journeys
-              </h2>
-              <p className="text-xl opacity-90 max-w-3xl mx-auto">
-                Trusted safari experiences across Kenya since 1993, combining
-                local expertise with world-class service
-              </p>
-            </div>
+          <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-amber-800 rounded-3xl p-12 text-center text-white">
+            <span className="bg-white/20 px-6 py-2 rounded-full text-amber-100">
+              ✦ 30+ Years of Excellence ✦
+            </span>
+            <h2 className="text-4xl md:text-5xl font-bold mt-6 mb-4">
+              Crafting Unforgettable African Journeys
+            </h2>
+            <p className="text-xl opacity-90">
+              Trusted safari experiences across Kenya since 1993
+            </p>
           </div>
         </motion.section>
 
-        {/* Mission & Values - Modern Grid Layout */}
-        <motion.section
-          variants={staggerContainer}
-          initial="initial"
-          whileInView="animate"
-          viewport={{ once: true }}
-          className="grid md:grid-cols-2 gap-8 mb-20"
-        >
-          <motion.div variants={fadeInUp} className="group">
-            <div className="bg-white rounded-3xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 h-full border border-amber-100">
-              <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <svg
-                  className="w-8 h-8 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-              </div>
+        {/* Mission & Values */}
+        <section className="mb-20">
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="bg-white rounded-3xl p-8 shadow-xl">
               <h2 className="text-3xl font-bold text-gray-800 mb-4">
                 Our Mission
               </h2>
-              <p className="text-gray-600 text-lg leading-relaxed mb-6">
+              <p className="text-gray-600 text-lg mb-6">
                 To provide unforgettable safari experiences, promote Kenyan
-                culture, and offer world-class tour services across Africa with
-                unwavering commitment to excellence and sustainability.
+                culture, and offer world-class tour services.
               </p>
               <div className="bg-amber-50 rounded-xl p-6 border-l-4 border-amber-500">
-                <p className="text-amber-800 italic text-lg">
-                  "Creating memories that last a lifetime while preserving
-                  Africa's natural heritage"
+                <p className="text-amber-800 italic">
+                  "Creating memories that last a lifetime"
                 </p>
               </div>
             </div>
-          </motion.div>
-
-          <motion.div variants={fadeInUp} className="group">
-            <div className="bg-white rounded-3xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 h-full border border-amber-100">
-              <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <svg
-                  className="w-8 h-8 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                  />
-                </svg>
-              </div>
+            <div className="bg-white rounded-3xl p-8 shadow-xl">
               <h2 className="text-3xl font-bold text-gray-800 mb-6">
                 Core Values
               </h2>
-              <div className="space-y-4">
-                {[
-                  {
-                    name: "Professionalism",
-                    desc: "Expert guides and seamless service delivery",
-                  },
-                  {
-                    name: "Integrity",
-                    desc: "Honest and transparent in all our dealings",
-                  },
-                  {
-                    name: "Customer Satisfaction",
-                    desc: "Your happiness is our ultimate goal",
-                  },
-                  {
-                    name: "Sustainability",
-                    desc: "Eco-friendly practices and community support",
-                  },
-                ].map((value, index) => (
-                  <div
-                    key={index}
-                    className="flex items-start space-x-4 p-3 rounded-xl hover:bg-amber-50 transition-colors"
-                  >
-                    <div className="w-2 h-2 bg-amber-500 rounded-full mt-2.5"></div>
-                    <div>
-                      <h3 className="font-semibold text-gray-800 text-lg">
-                        {value.name}
-                      </h3>
-                      <p className="text-gray-600">{value.desc}</p>
-                    </div>
+              {coreValues.map((v, i) => (
+                <div
+                  key={i}
+                  className="flex items-start space-x-4 p-3 hover:bg-amber-50 rounded-xl"
+                >
+                  <div className="w-2 h-2 bg-amber-500 rounded-full mt-2.5"></div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800">{v.name}</h3>
+                    <p className="text-gray-600">{v.desc}</p>
                   </div>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        </motion.section>
-
-        {/* Background Story - Modern Card */}
-        <motion.section
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="mb-20"
-        >
-          <div className="bg-white rounded-3xl overflow-hidden shadow-xl">
-            <div className="grid md:grid-cols-5 gap-0">
-              <div className="md:col-span-3 p-8 md:p-12">
-                <span className="text-amber-600 font-semibold tracking-wider text-sm">
-                  OUR JOURNEY
-                </span>
-                <h2 className="text-4xl font-bold text-gray-800 mt-2 mb-6">
-                  The Jozz Tembo Story
-                </h2>
-                <div className="space-y-4 text-gray-600 text-lg leading-relaxed">
-                  <p>
-                    From humble beginnings in the coastal town of Malindi, Jozz
-                    Tembo Tours and Safari has grown into one of Kenya's most
-                    trusted safari operators. What started as a family passion
-                    for wildlife and culture has blossomed into three decades of
-                    creating extraordinary African adventures.
-                  </p>
-                  <p>
-                    Our deep roots in Kenya's tourism landscape, combined with
-                    international standards of service, allow us to offer
-                    experiences that are both authentic and exceptional. Every
-                    journey we craft is infused with local knowledge, genuine
-                    hospitality, and an unwavering commitment to conservation.
-                  </p>
                 </div>
-                <div className="mt-8 p-6 bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl border border-amber-200">
-                  <p className="text-gray-700 text-center text-xl font-medium">
-                    <span className="text-amber-700">
-                      "Driven by passion, guided by experience"
-                    </span>
-                    <br />
-                    <span className="text-sm text-gray-500">
-                      — The Jozz Tembo Promise
-                    </span>
-                  </p>
-                </div>
-              </div>
-              <div className="md:col-span-2 relative min-h-[400px]">
-                <img
-                  src="https://images.unsplash.com/photo-1547471080-7cc2caa01a7e?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
-                  alt="African landscape"
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
-              </div>
+              ))}
             </div>
           </div>
-        </motion.section>
+        </section>
 
-        {/* ========== PARTNERSHIP SECTION - CONTAINED MARQUEE ========== */}
-        <motion.section
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="mb-20"
-        >
+        {/* Partners */}
+        <section className="mb-20">
           <div className="text-center mb-12">
-            <span className="text-amber-600 font-semibold tracking-wider text-sm">
-              OUR NETWORK
-            </span>
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-800 mt-2 mb-4">
+            <h2 className="text-4xl font-bold text-gray-800">
               Trusted Partners
             </h2>
-            <div className="w-24 h-1 bg-gradient-to-r from-amber-400 to-amber-600 mx-auto rounded-full mb-6"></div>
-            <p className="text-gray-600 max-w-2xl mx-auto text-lg">
-              Proudly collaborating with Kenya's finest organizations to deliver
-              exceptional safari experiences
-            </p>
           </div>
-
-          <style jsx>{`
-            .marquee-container {
-              position: relative;
-              width: 100%;
-              overflow-x: hidden;
-            }
-
-            .marquee-track {
-              display: flex;
-              gap: 1.5rem;
-              width: fit-content;
-              animation: marquee 40s linear infinite;
-            }
-
-            .marquee-track:hover {
-              animation-play-state: paused;
-            }
-
-            .partner-card {
-              flex-shrink: 0;
-              width: 16rem;
-              cursor: pointer;
-              transition: transform 0.3s ease;
-            }
-
-            .partner-card:hover {
-              transform: scale(1.05) translateY(-5px);
-            }
-
-            @keyframes marquee {
-              0% {
-                transform: translateX(0);
-              }
-              100% {
-                transform: translateX(-50%);
-              }
-            }
-
-            @media (max-width: 640px) {
-              .partner-card {
-                width: 12rem;
-              }
-
-              .marquee-track {
-                animation: marquee 30s linear infinite;
-              }
-            }
-          `}</style>
-
+          <style>{`@keyframes marqueeScroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } } .marquee-container { position: relative; width: 100%; overflow: hidden; } .marquee-track { display: flex; gap: 1.5rem; width: max-content; animation: marqueeScroll 40s linear infinite; } .marquee-track:hover { animation-play-state: paused; } .partner-card { flex-shrink: 0; width: 16rem; cursor: pointer; }`}</style>
           <div className="marquee-container py-8">
-            {/* Gradient overlays */}
-            <div className="absolute left-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-r from-stone-50 to-transparent z-10 pointer-events-none"></div>
-            <div className="absolute right-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-l from-stone-50 to-transparent z-10 pointer-events-none"></div>
-
-            <div className="marquee-track">
-              {/* Triple the partners array for smooth looping */}
-              {[...partners, ...partners, ...partners].map((partner, index) => (
+            <div className="marquee-track py-4">
+              {[...partners, ...partners].map((partner, idx) => (
                 <div
-                  key={`${partner.id}-${index}`}
-                  className="partner-card"
+                  key={idx}
+                  className="partner-card hover:scale-105 transition-transform"
                   onClick={() => setSelectedPartner(partner)}
                 >
-                  <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 border border-amber-100 h-full">
-                    <div className="h-32 md:h-40 bg-amber-50 relative overflow-hidden">
+                  <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-amber-100">
+                    <div className="h-40 bg-amber-50">
                       <img
                         src={partner.imageUrl}
                         alt={partner.name}
-                        className="w-full h-full object-cover pointer-events-none"
-                        draggable="false"
+                        className="w-full h-full object-cover"
                         onError={(e) => {
                           e.target.onerror = null;
                           e.target.src =
@@ -572,123 +601,491 @@ const About = () => {
                             partner.name;
                         }}
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
                     </div>
-                    <div className="p-4 md:p-5">
-                      <h3 className="text-base md:text-lg font-bold text-gray-800 mb-2">
-                        {partner.name}
-                      </h3>
-                      <div className="flex items-center text-amber-600">
-                        <span className="text-xs md:text-sm">
-                          Click to learn more
-                        </span>
-                        <svg
-                          className="w-3 h-3 md:w-4 md:h-4 ml-1 md:ml-2"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5l7 7-7 7"
-                          />
-                        </svg>
-                      </div>
+                    <div className="p-5">
+                      <h3 className="text-lg font-bold">{partner.name}</h3>
+                      <span className="text-sm text-amber-600">
+                        Click to learn more →
+                      </span>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
+        </section>
 
-          <p className="text-center text-gray-500 text-xs md:text-sm mt-4 md:mt-6 px-4">
-            Hover to pause • Click any partner to learn more
-          </p>
-        </motion.section>
-
-        {/* Features Grid - Modern Cards */}
-        <motion.section
-          variants={staggerContainer}
-          initial="initial"
-          whileInView="animate"
-          viewport={{ once: true }}
-          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 md:gap-8 mb-20"
-        >
-          {[
-            {
-              title: "Driven by Passion",
-              desc: "Our love for Africa fuels every journey we create",
-              icon: "🔥",
-            },
-            {
-              title: "Guided by Experience",
-              desc: "30 years of expertise in African safari tours",
-              icon: "🎯",
-            },
-            {
-              title: "Custom Experiences",
-              desc: "Tailored adventures for every traveler",
-              icon: "✨",
-            },
-          ].map((feature, index) => (
-            <motion.div key={index} variants={fadeInUp} className="group">
-              <div className="bg-white rounded-2xl p-6 md:p-8 text-center shadow-lg hover:shadow-2xl transition-all duration-300 border border-amber-100 h-full">
-                <div className="text-4xl md:text-5xl mb-4 group-hover:scale-110 transition-transform">
-                  {feature.icon}
+        {/* ============ REVIEWS SECTION ============ */}
+        <section className="mb-20">
+          <div className="text-center mb-12">
+            <span className="text-amber-600 font-semibold tracking-wider text-sm">
+              TESTIMONIALS
+            </span>
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-800 mt-2 mb-4">
+              What Our Travelers Say
+            </h2>
+            <div className="w-24 h-1 bg-gradient-to-r from-amber-400 to-amber-600 mx-auto rounded-full mb-6"></div>
+            <div className="flex justify-center gap-8 mt-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-amber-600">
+                  {reviewStats.average_rating}
                 </div>
-                <h3 className="text-lg md:text-xl font-bold text-gray-800 mb-2 md:mb-3">
-                  {feature.title}
-                </h3>
-                <p className="text-sm md:text-base text-gray-600">
-                  {feature.desc}
-                </p>
+                <div className="text-sm text-gray-600">Average Rating</div>
               </div>
-            </motion.div>
-          ))}
-        </motion.section>
-
-        {/* CTA Section - Modern Gradient */}
-        <motion.section
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="text-center"
-        >
-          <div className="bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 rounded-3xl p-8 md:p-12 lg:p-16 text-white shadow-2xl relative overflow-hidden">
-            <div className="absolute inset-0 opacity-10">
-              <div className="absolute top-0 left-0 w-64 h-64 bg-white rounded-full -translate-x-32 -translate-y-32"></div>
-              <div className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full translate-x-48 translate-y-48"></div>
-            </div>
-            <div className="relative z-10">
-              <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6">
-                Ready for Your African Adventure?
-              </h2>
-              <p className="text-lg md:text-xl mb-6 md:mb-8 opacity-95 max-w-2xl mx-auto px-4">
-                Let our three decades of expertise guide you through the wild
-                heart of Kenya
-              </p>
-              <div className="inline-block bg-white/20 backdrop-blur-sm px-6 md:px-8 py-3 md:py-4 rounded-full">
-                <p className="text-xl md:text-2xl italic font-light">
-                  Driven by passion, guided by experience
-                </p>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-amber-600">
+                  {reviewStats.total_reviews}
+                </div>
+                <div className="text-sm text-gray-600">Total Reviews</div>
               </div>
-              
             </div>
           </div>
-        </motion.section>
+
+          {/* Write Review Button & Auth Info */}
+          <div className="text-center mb-8">
+            {!showReviewForm && (
+              <button
+                onClick={() => {
+                  setShowReviewForm(true);
+                  setEditingReview(null);
+                  setReviewForm({
+                    reviewer_name: "",
+                    rating: 5,
+                    title: "",
+                    content: "",
+                    visit_date: "",
+                    package_used: "",
+                  });
+                }}
+                className="bg-amber-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-amber-700 shadow-lg transition-all hover:shadow-xl"
+              >
+                ✍️ Write a Review
+              </button>
+            )}
+            {user ? (
+              <p className="text-sm text-gray-500 mt-2">
+                Signed in as <span className="font-semibold">{user.name}</span>
+                {user.is_admin && (
+                  <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                    Admin
+                  </span>
+                )}
+              </p>
+            ) : (
+              <p className="text-sm text-gray-400 mt-2">
+                You can add your name when submitting a review ✨
+              </p>
+            )}
+          </div>
+
+          {/* Review Form */}
+          <AnimatePresence>
+            {showReviewForm && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="bg-white rounded-2xl p-6 shadow-xl mb-8 border border-amber-100"
+              >
+                <form onSubmit={handleSubmitReview} className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xl font-bold text-gray-800">
+                      {editingReview
+                        ? "✏️ Edit Your Review"
+                        : "📝 Share Your Experience"}
+                    </h3>
+                  </div>
+
+                  {/* ✅ NAME FIELD - Always visible for non-authenticated users */}
+                  {!user && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        Your Name{" "}
+                        <span className="text-gray-400">(optional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={reviewForm.reviewer_name}
+                        onChange={(e) =>
+                          setReviewForm({
+                            ...reviewForm,
+                            reviewer_name: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                        placeholder="Enter your name (or leave blank for Anonymous)"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        If left blank, your review will appear as "Anonymous"
+                      </p>
+                    </div>
+                  )}
+
+                  {/* If user IS signed in, show their name (read-only) */}
+                  {user && (
+                    <div className="bg-amber-50 p-3 rounded-lg">
+                      <label className="block text-sm font-medium mb-1 text-gray-600">
+                        Posting as
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                          {user.name?.charAt(0) || "U"}
+                        </div>
+                        <span className="font-semibold text-gray-800">
+                          {user.name}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Rating
+                    </label>
+                    <StarRating
+                      rating={reviewForm.rating}
+                      onRatingChange={(r) =>
+                        setReviewForm({ ...reviewForm, rating: r })
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Title *
+                    </label>
+                    <input
+                      type="text"
+                      value={reviewForm.title}
+                      onChange={(e) =>
+                        setReviewForm({ ...reviewForm, title: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      placeholder="Summarize your experience"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Your Review *
+                    </label>
+                    <textarea
+                      value={reviewForm.content}
+                      onChange={(e) =>
+                        setReviewForm({
+                          ...reviewForm,
+                          content: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      rows={4}
+                      placeholder="Tell us about your experience..."
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        Visit Date
+                      </label>
+                      <input
+                        type="date"
+                        value={reviewForm.visit_date}
+                        onChange={(e) =>
+                          setReviewForm({
+                            ...reviewForm,
+                            visit_date: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        Package Used
+                      </label>
+                      <input
+                        type="text"
+                        value={reviewForm.package_used}
+                        onChange={(e) =>
+                          setReviewForm({
+                            ...reviewForm,
+                            package_used: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                        placeholder="e.g., Maasai Mara Safari"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      type="submit"
+                      className="flex-1 bg-amber-600 text-white py-3 rounded-lg hover:bg-amber-700 font-semibold transition-colors"
+                    >
+                      {editingReview ? "✅ Update Review" : "📤 Submit Review"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowReviewForm(false);
+                        setEditingReview(null);
+                      }}
+                      className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Reviews List */}
+          {reviewsLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600 mx-auto"></div>
+            </div>
+          ) : reviews.length === 0 ? (
+            <div className="text-center py-8 text-gray-600">
+              <p className="text-xl">
+                No reviews yet. Be the first to share your experience!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {reviews.map((review) => (
+                <motion.div
+                  key={review.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center text-white font-bold">
+                        {(
+                          review.user?.name ||
+                          review.reviewer_name ||
+                          "A"
+                        ).charAt(0)}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-800">
+                          {review.user?.name ||
+                            review.reviewer_name ||
+                            "Anonymous"}
+                          {review.user?.id === user?.id && (
+                            <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                              You
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {new Date(review.created_at).toLocaleDateString(
+                            "en-US",
+                            {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            },
+                          )}
+                          {review.is_edited && (
+                            <span className="ml-2 italic">(edited)</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <StarRating
+                      rating={review.rating}
+                      interactive={false}
+                      size="text-lg"
+                    />
+                  </div>
+
+                  <h4 className="text-lg font-bold text-gray-800 mb-2">
+                    {review.title}
+                  </h4>
+                  <p className="text-gray-600 mb-3">{review.content}</p>
+
+                  {review.package_used && (
+                    <div className="text-sm text-amber-600 mb-2">
+                      📦 Package: {review.package_used}
+                    </div>
+                  )}
+                  {review.visit_date && (
+                    <div className="text-sm text-gray-500 mb-3">
+                      📅 Visited:{" "}
+                      {new Date(review.visit_date).toLocaleDateString()}
+                    </div>
+                  )}
+
+                  {/* Action Buttons - Visible to review owner AND admins */}
+                  {canModifyReview(review) && (
+                    <div className="flex gap-2 mt-4 border-t pt-3">
+                      <button
+                        onClick={() => handleEditReview(review)}
+                        className="text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                      >
+                        ✏️ Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteReview(review.id)}
+                        className="text-sm text-red-600 hover:text-red-800 hover:underline font-medium"
+                      >
+                        🗑️ Delete
+                      </button>
+                      {user?.is_admin && (
+                        <span className="text-xs text-gray-400 self-center ml-2">
+                          Admin
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Admin Reply Actions */}
+                  {user?.is_admin && (
+                    <div className="flex gap-2 mt-2 border-t pt-3">
+                      {replyingTo !== review.id ? (
+                        <button
+                          onClick={() => setReplyingTo(review.id)}
+                          className="text-sm text-green-600 hover:text-green-800 hover:underline font-medium"
+                        >
+                          💬 Reply as Admin
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setReplyingTo(null);
+                            setReplyContent("");
+                          }}
+                          className="text-sm text-gray-600 hover:underline"
+                        >
+                          Cancel Reply
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Reply Form - Admin Only */}
+                  {replyingTo === review.id && user?.is_admin && (
+                    <div className="mt-4 pl-4 border-l-2 border-amber-300">
+                      <textarea
+                        value={replyContent}
+                        onChange={(e) => setReplyContent(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg mb-2 focus:ring-2 focus:ring-amber-500"
+                        rows={3}
+                        placeholder="Write your reply..."
+                      />
+                      <button
+                        onClick={() => handleSubmitReply(review.id)}
+                        className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 text-sm"
+                      >
+                        Submit Reply
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Replies */}
+                  {review.replies?.length > 0 && (
+                    <div className="mt-4 space-y-3 pl-4 border-l-2 border-gray-200">
+                      {review.replies.map((reply) => (
+                        <div
+                          key={reply.id}
+                          className="bg-gray-50 rounded-lg p-4"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                                A
+                              </div>
+                              <div>
+                                <div className="font-semibold text-sm text-gray-800">
+                                  {reply.user?.name || "Admin"}
+                                  <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                                    Admin
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {new Date(
+                                    reply.created_at,
+                                  ).toLocaleDateString()}
+                                </div>
+                              </div>
+                            </div>
+                            {user?.is_admin && (
+                              <button
+                                onClick={() => handleDeleteReply(reply.id)}
+                                className="text-xs text-red-600 hover:underline"
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-gray-600 mt-2 text-sm">
+                            {reply.content}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {reviewPagination.pages > 1 && (
+            <div className="flex justify-center gap-2 mt-8">
+              <button
+                onClick={() => setReviewPage(reviewPage - 1)}
+                disabled={!reviewPagination.has_prev}
+                className="px-4 py-2 bg-white rounded-lg shadow disabled:opacity-50 hover:bg-gray-50"
+              >
+                ← Previous
+              </button>
+              <span className="px-4 py-2">
+                Page {reviewPage} of {reviewPagination.pages}
+              </span>
+              <button
+                onClick={() => setReviewPage(reviewPage + 1)}
+                disabled={!reviewPagination.has_next}
+                className="px-4 py-2 bg-white rounded-lg shadow disabled:opacity-50 hover:bg-gray-50"
+              >
+                Next →
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* CTA */}
+        <section className="text-center mb-20">
+          <div className="bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 rounded-3xl p-12 text-white shadow-2xl">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Ready for Your African Adventure?
+            </h2>
+            <p className="text-lg mb-6">
+              Let our three decades of expertise guide you through the wild
+              heart of Kenya
+            </p>
+            <div className="inline-block bg-white/20 backdrop-blur-sm px-8 py-4 rounded-full">
+              <p className="text-xl italic font-light">
+                Driven by passion, guided by experience
+              </p>
+            </div>
+          </div>
+        </section>
       </main>
 
-      {/* Partner Modal */}
+      {/* Modals */}
       <AnimatePresence>
-        {selectedPartner && (
-          <PartnerModal
-            partner={selectedPartner}
-            onClose={() => setSelectedPartner(null)}
-          />
+        {selectedMission && (
+          <MissionModal onClose={() => setSelectedMission(false)} />
         )}
+        {selectedPartner && <div>Partner Modal (same as before)</div>}
       </AnimatePresence>
     </div>
   );

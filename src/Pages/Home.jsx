@@ -252,20 +252,20 @@ export default function Home() {
       lodges: [
         {
           name: "Lake Elementaita Lodge",
-          image: "/assets/elementaita.jpg",
-          fallbackImage: "/assets/lodges/default-lodge.jpg",
+          image: "/assets/lake elentaita.png",
+          fallbackImage: "/assets/lake elentaita.png",
           description:
             "Scenic lodge overlooking Lake Elementaita with stunning views.",
           gallery: [
-            "/assets/elementaita1.jpg",
-            "/assets/elementaita2.jpg",
-            "/assets/elementaita3.jpg",
+            "/assets/elementaita 1.png",
+            "/assets/elementaita 2.png",
+            "/assets/elementaita 3.png",
           ],
         },
         {
           name: "Lake Nakuru Lodge",
           image: "/assets/lake-nakurulodge.png",
-          fallbackImage: "/assets/lodges/default-lodge.jpg",
+          fallbackImage: "/assets/lake-nakurulodge.png",
           description:
             "Modern lodge with stunning lake views and swimming pool.",
           gallery: [

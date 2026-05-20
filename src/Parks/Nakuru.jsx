@@ -1,8 +1,3 @@
-/**
- * Copyright (c) 2024 Safari Booking System. All rights reserved.
- * Unauthorized copying, modification, or distribution of this file is prohibited.
- */
-
 import React, { useState, useEffect } from "react";
 import Swal from "sweetalert2";
 
@@ -93,7 +88,14 @@ const Nakuru = () => {
     ],
   });
 
-  // DEFAULT safari routes - only used if localStorage is empty
+  // Helper function to check if a package is a Nakuru package
+  const isNakuruPackage = (route) => {
+    if (!route || !route.name) return false;
+    const name = route.name.toLowerCase();
+    return name.startsWith("lake nakuru") || name.includes("nakuru");
+  };
+
+  // DEFAULT safari routes - ONLY Nakuru packages
   const defaultSafariRoutes = [
     {
       id: 1,
@@ -239,37 +241,44 @@ const Nakuru = () => {
     },
   ];
 
-  // Load safari routes from localStorage on initial load
+  // Load safari routes from localStorage on initial load - STRICT NAKURU ONLY
   const [safariRoutes, setSafariRoutes] = useState(() => {
     try {
       const savedRoutes = localStorage.getItem("nakuruPackages");
       if (savedRoutes) {
-        return JSON.parse(savedRoutes);
+        const parsedRoutes = JSON.parse(savedRoutes);
+        // STRICT FILTER: Only packages that contain "nakuru" (case insensitive)
+        const nakuruOnly = parsedRoutes.filter(isNakuruPackage);
+        return nakuruOnly;
       }
-      localStorage.setItem(
-        "nakuruPackages",
-        JSON.stringify(defaultSafariRoutes),
-      );
-      return defaultSafariRoutes;
+      // Only save default routes that are Nakuru-specific
+      const nakuruDefaults = defaultSafariRoutes.filter(isNakuruPackage);
+      localStorage.setItem("nakuruPackages", JSON.stringify(nakuruDefaults));
+      return nakuruDefaults;
     } catch (error) {
       console.error("Error loading safari packages:", error);
-      return defaultSafariRoutes;
+      return defaultSafariRoutes.filter(isNakuruPackage);
     }
   });
 
-  // Save safari routes to localStorage whenever they change
+  // Filtered packages that ONLY include Lake Nakuru (for display)
+  const filteredSafariRoutes = safariRoutes.filter(isNakuruPackage);
+
+  // Save safari routes to localStorage whenever they change - ONLY NAKURU
   useEffect(() => {
     try {
-      localStorage.setItem("nakuruPackages", JSON.stringify(safariRoutes));
+      const nakuruOnly = safariRoutes.filter(isNakuruPackage);
+      localStorage.setItem("nakuruPackages", JSON.stringify(nakuruOnly));
     } catch (error) {
       console.error("Error saving safari packages:", error);
     }
   }, [safariRoutes]);
 
-  // Function to save safari routes to localStorage
+  // Function to save safari routes to localStorage - ONLY NAKURU
   const saveSafariRoutesToStorage = (routes) => {
     try {
-      localStorage.setItem("nakuruPackages", JSON.stringify(routes));
+      const nakuruOnly = routes.filter(isNakuruPackage);
+      localStorage.setItem("nakuruPackages", JSON.stringify(nakuruOnly));
     } catch (error) {
       console.error("Error saving to localStorage:", error);
       Swal.fire({
@@ -290,14 +299,10 @@ const Nakuru = () => {
         );
         if (packagesResponse.ok) {
           const packagesData = await packagesResponse.json();
+          // STRICT FILTER: Only Lake Nakuru packages
           const filteredPackages =
             packagesData.success && packagesData.data
-              ? packagesData.data.filter(
-                  (pkg) =>
-                    pkg.name &&
-                    (pkg.name.toLowerCase().includes("lake nakuru") ||
-                      pkg.name.toLowerCase().includes("nakuru")),
-                )
+              ? packagesData.data.filter(isNakuruPackage)
               : [];
 
           setBackendStatus({
@@ -321,10 +326,13 @@ const Nakuru = () => {
     checkBackendConnection();
   }, []);
 
-  // Load packages from backend and merge with local
+  // Load packages from backend and merge with local - STRICT NAKURU ONLY
   const loadPackagesFromBackend = (backendPackages) => {
     try {
-      const convertedPackages = backendPackages.map((pkg) => {
+      // Filter backend packages to only Nakuru
+      const nakuruBackendPackages = backendPackages.filter(isNakuruPackage);
+
+      const convertedPackages = nakuruBackendPackages.map((pkg) => {
         const hasPrices = pkg.prices && pkg.prices.length > 0;
         const basePrice = hasPrices ? pkg.prices[0] : null;
 
@@ -384,15 +392,23 @@ const Nakuru = () => {
         };
       });
 
-      const allPackages = [...safariRoutes.filter((pkg) => !pkg.backendId)];
+      // ONLY keep Nakuru local packages and add filtered backend packages
+      const localNakuruPackages = safariRoutes.filter(
+        (pkg) => !pkg.backendId && isNakuruPackage(pkg),
+      );
+      const allPackages = [...localNakuruPackages];
+
       convertedPackages.forEach((backendPkg) => {
-        const exists = allPackages.some(
-          (localPkg) =>
-            localPkg.backendId === backendPkg.backendId ||
-            localPkg.name === backendPkg.name,
-        );
-        if (!exists) {
-          allPackages.push(backendPkg);
+        // Only add if it's a Nakuru package (double check)
+        if (isNakuruPackage(backendPkg)) {
+          const exists = allPackages.some(
+            (localPkg) =>
+              localPkg.backendId === backendPkg.backendId ||
+              localPkg.name === backendPkg.name,
+          );
+          if (!exists) {
+            allPackages.push(backendPkg);
+          }
         }
       });
 
@@ -554,8 +570,8 @@ const Nakuru = () => {
   const galleryImages = [
     {
       id: 1,
-      src: "/assets/gallery/nakuru-flamingos.jpg",
-      fallback: "/assets/gallery/default-nakuru.jpg",
+      src: "/assets/nakuru gala1.png",
+      fallback: "/assets/nakuru gala1.png",
       title: "Pink Flamingo Sea",
       description:
         "Millions of flamingos creating a pink ribbon around the lake",
@@ -563,88 +579,88 @@ const Nakuru = () => {
     },
     {
       id: 2,
-      src: "/assets/gallery/nakuru-rhino.jpg",
-      fallback: "/assets/gallery/default-nakuru.jpg",
+      src: "/assets/nakuru gala2.png",
+      fallback: "/assets/nakuru gala2.png",
       title: "Black Rhino",
       description: "Endangered black rhino in the protected sanctuary",
       category: "wildlife",
     },
     {
       id: 3,
-      src: "/assets/gallery/nakuru-cliff.jpg",
-      fallback: "/assets/gallery/default-nakuru.jpg",
+      src: "/assets/nakuru gala3.png",
+      fallback: "/assets/nakuru gala3.png",
       title: "Baboon Cliff View",
       description: "Panoramic views from the famous Baboon Cliff",
       category: "landscape",
     },
     {
       id: 4,
-      src: "/assets/gallery/nakuru-pelicans.jpg",
-      fallback: "/assets/gallery/default-nakuru.jpg",
+      src: "/assets/nakuru gala4.png",
+      fallback: "/assets/nakuru gala4.png",
       title: "Great White Pelicans",
       description: "Large flocks of pelicans fishing in the lake",
       category: "birds",
     },
     {
       id: 5,
-      src: "/assets/gallery/nakuru-giraffe.jpg",
-      fallback: "/assets/gallery/default-nakuru.jpg",
+      src: "/assets/nakuru gala5.png",
+      fallback: "/assets/nakuru gala5.png",
       title: "Rothschild's Giraffe",
       description: "Endangered giraffe species found in the park",
       category: "wildlife",
     },
     {
       id: 6,
-      src: "/assets/gallery/nakuru-waterfall.jpg",
-      fallback: "/assets/gallery/default-nakuru.jpg",
+      src: "/assets/nakuru gala6.png",
+      fallback: "/assets/nakuru gala6.png",
       title: "Makalia Falls",
       description: "Beautiful waterfall within the park",
       category: "landscape",
     },
     {
       id: 7,
-      src: "/assets/gallery/nakuru-lions.jpg",
-      fallback: "/assets/gallery/default-nakuru.jpg",
+      src: "/assets/nakuru gala7.png",
+      fallback: "/assets/nakuru gala7.png",
       title: "Tree-Climbing Lions",
       description: "Lions resting in acacia trees",
       category: "wildlife",
     },
     {
       id: 8,
-      src: "/assets/gallery/nakuru-sunset.jpg",
-      fallback: "/assets/gallery/default-nakuru.jpg",
+      src: "/assets/nakuru gala8.png",
+      fallback: "/assets/nakuru gala8.png",
       title: "Lake Sunset",
       description: "Stunning sunset over Lake Nakuru",
       category: "landscape",
     },
     {
       id: 9,
-      src: "/assets/gallery/nakuru-birding.jpg",
-      fallback: "/assets/gallery/default-nakuru.jpg",
+      src: "/assets/nakuru gala9.png",
+      fallback: "/assets/nakuru gala9.png",
       title: "Bird Watching",
       description: "Over 450 bird species recorded in the park",
       category: "birds",
     },
     {
       id: 10,
-      src: "/assets/gallery/nakuru-white-rhino.jpg",
-      fallback: "/assets/gallery/default-nakuru.jpg",
+      src: "/assets/nakuru gala10.png",
+      fallback: "/assets/nakuru gala10.png",
       title: "White Rhino",
       description: "White rhino grazing in the sanctuary",
       category: "wildlife",
     },
     {
       id: 11,
-      src: "/assets/gallery/nakuru-rift-valley.jpg",
-      fallback: "/assets/gallery/default-nakuru.jpg",
+      src: "/assets/nakuru gala11.png",
+      fallback: "/assets/nakuru gala11.png",
       title: "Rift Valley View",
       description: "Spectacular views of the Great Rift Valley",
       category: "landscape",
     },
     {
       id: 12,
-      src: "/assets/gallery/nakuru-leopard.jpg",
-      fallback: "/assets/gallery/default-nakuru.jpg",
+      src: "/assets/nakuru gala12.png",
+      fallback: "/assets/nakuru gala12.png",
       title: "Leopard Sighting",
       description: "Elusive leopard in the acacia woodlands",
       category: "wildlife",
@@ -656,8 +672,8 @@ const Nakuru = () => {
     {
       id: 1,
       name: "Baboon Cliff",
-      image: "/assets/attractions/baboon-cliff.jpg",
-      fallback: "/assets/attractions/default-attraction.jpg",
+      image: "/assets/TA nakuru 1.png",
+      fallback: "/assets/TA nakuru 1.png",
       description:
         "Spectacular viewpoint overlooking the entire lake with panoramic views of the Rift Valley.",
       bestTime: "Sunrise or sunset",
@@ -668,8 +684,8 @@ const Nakuru = () => {
     {
       id: 2,
       name: "Makalia Falls",
-      image: "/assets/attractions/makalia-falls.jpg",
-      fallback: "/assets/attractions/default-attraction.jpg",
+      image: "/assets/TA nakuru 2.png",
+      fallback: "/assets/TA nakuru 2.png",
       description:
         "Beautiful waterfall in the southern part of the park, especially impressive after rains.",
       bestTime: "After rainy season",
@@ -680,8 +696,8 @@ const Nakuru = () => {
     {
       id: 3,
       name: "Rhino Sanctuary",
-      image: "/assets/attractions/rhino-sanctuary.jpg",
-      fallback: "/assets/attractions/default-attraction.jpg",
+      image: "/assets/TA nakuru 3.png",
+      fallback: "/assets/TA nakuru 3.png",
       description:
         "Protected area for both black and white rhinos, one of the most successful rhino conservation projects in Kenya.",
       bestTime: "Early morning or late afternoon",
@@ -692,8 +708,8 @@ const Nakuru = () => {
     {
       id: 4,
       name: "Lion Hill",
-      image: "/assets/attractions/lion-hill.jpg",
-      fallback: "/assets/attractions/default-attraction.jpg",
+      image: "/assets/TA nakuru 4.png",
+      fallback: "/assets/TA nakuru 4.png",
       description:
         "Viewpoint with excellent game viewing opportunities and a good spot to see tree-climbing lions.",
       bestTime: "Morning",
@@ -704,8 +720,8 @@ const Nakuru = () => {
     {
       id: 5,
       name: "Lake Shore Drive",
-      image: "/assets/attractions/lake-shore.jpg",
-      fallback: "/assets/attractions/default-attraction.jpg",
+      image: "/assets/TA nakuru 5.png",
+      fallback: "/assets/TA nakuru 5.png",
       description:
         "Scenic drive along the flamingo-filled shoreline, offering close-up views of the birds.",
       bestTime: "Any time of day",
@@ -716,8 +732,8 @@ const Nakuru = () => {
     {
       id: 6,
       name: "Out of Africa Lookout",
-      image: "/assets/attractions/out-of-africa.jpg",
-      fallback: "/assets/attractions/default-attraction.jpg",
+      image: "/assets/TA nakuru 6.png",
+      fallback: "/assets/TA nakuru 6.png",
       description:
         "Historic viewpoint made famous by the movie 'Out of Africa', offering cinematic views of the Rift Valley.",
       bestTime: "Morning",
@@ -753,6 +769,17 @@ const Nakuru = () => {
     const routeName = adminForm.routeName.includes("Lake Nakuru")
       ? adminForm.routeName
       : `Lake Nakuru → ${adminForm.routeName}`;
+
+    // VALIDATE: Ensure the package name contains "Nakuru"
+    if (!routeName.toLowerCase().includes("nakuru")) {
+      Swal.fire({
+        title: "Invalid Package Name",
+        text: "All packages on this page must include 'Nakuru' in the name. Please ensure your package is for Lake Nakuru.",
+        icon: "error",
+        confirmButtonColor: "#2563eb",
+      });
+      return;
+    }
 
     const prices = adminForm.priceOptions.map((option) => option.price);
     const minPrice = Math.min(...prices);
@@ -883,12 +910,8 @@ const Nakuru = () => {
         const packagesData = await response.json();
 
         if (packagesData.success) {
-          const filteredPackages = packagesData.data.filter(
-            (pkg) =>
-              pkg.name &&
-              (pkg.name.toLowerCase().includes("lake nakuru") ||
-                pkg.name.toLowerCase().includes("nakuru")),
-          );
+          // STRICT FILTER: Only Lake Nakuru packages
+          const filteredPackages = packagesData.data.filter(isNakuruPackage);
 
           const backendPackages = filteredPackages.map((pkg) => {
             const hasPrices = pkg.prices && pkg.prices.length > 0;
@@ -950,7 +973,10 @@ const Nakuru = () => {
             };
           });
 
-          const localPackages = safariRoutes.filter((pkg) => !pkg.backendId);
+          // ONLY keep Nakuru local packages
+          const localPackages = safariRoutes.filter(
+            (pkg) => !pkg.backendId && isNakuruPackage(pkg),
+          );
           const allPackages = [...localPackages, ...backendPackages];
 
           setSafariRoutes(allPackages);
@@ -1067,9 +1093,21 @@ const Nakuru = () => {
   const handleAdminSubmit = async (e) => {
     e.preventDefault();
 
+    // ENSURE package name starts with "Lake Nakuru → "
     const routeName = adminForm.routeName.includes("Lake Nakuru")
       ? adminForm.routeName
       : `Lake Nakuru → ${adminForm.routeName}`;
+
+    // VALIDATE: Ensure the package name contains "Nakuru"
+    if (!routeName.toLowerCase().includes("nakuru")) {
+      Swal.fire({
+        title: "Invalid Package Name",
+        text: "All packages on this page must include 'Nakuru' in the name. This page only accepts Lake Nakuru safari packages.",
+        icon: "error",
+        confirmButtonColor: "#2563eb",
+      });
+      return;
+    }
 
     const prices = adminForm.priceOptions.map((option) => option.price);
     const minPrice = Math.min(...prices);
@@ -1175,6 +1213,17 @@ const Nakuru = () => {
 
   // Modified handleRouteSelect to REQUIRE lodge selection
   const handleRouteSelect = async (route) => {
+    // Ensure the selected route is a Nakuru package
+    if (!isNakuruPackage(route)) {
+      Swal.fire({
+        title: "Invalid Package",
+        text: "This page only supports Lake Nakuru safari packages.",
+        icon: "error",
+        confirmButtonColor: "#2563eb",
+      });
+      return;
+    }
+
     if (!selectedLodge) {
       const result = await Swal.fire({
         title: "Lodge Required",
@@ -1347,6 +1396,16 @@ const Nakuru = () => {
         title: "Safari Route Required",
         text: "Please select a safari route package.",
         icon: "warning",
+        confirmButtonColor: "#2563eb",
+      });
+      return false;
+    }
+    // Validate that selected route is a Nakuru package
+    if (!isNakuruPackage(selectedRoute)) {
+      Swal.fire({
+        title: "Invalid Package",
+        text: "The selected package is not a Lake Nakuru package. Please select a valid Nakuru safari.",
+        icon: "error",
         confirmButtonColor: "#2563eb",
       });
       return false;
@@ -2118,7 +2177,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                     </p>
                     <p className="text-xs text-blue-600">
                       {backendStatus.connected
-                        ? `${backendStatus.packageCount} Lake Nakuru packages in database, ${safariRoutes.length} locally`
+                        ? `${backendStatus.packageCount} Lake Nakuru packages in database, ${filteredSafariRoutes.length} locally`
                         : "All data stored locally in browser"}
                     </p>
                   </div>
@@ -2164,7 +2223,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   Select Your Lodge Now
                 </button>
               </div>
-            ) : safariRoutes.length === 0 ? (
+            ) : filteredSafariRoutes.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-xl shadow-lg border border-blue-200">
                 <svg
                   className="w-16 h-16 text-gray-400 mx-auto mb-4"
@@ -2180,7 +2239,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   />
                 </svg>
                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  No Safari Packages Available
+                  No Lake Nakuru Safari Packages Available
                 </h3>
                 <p className="text-gray-600 mb-6">
                   Click "Add New Package" to create your first Lake Nakuru
@@ -2195,11 +2254,11 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
               </div>
             ) : (
               <>
-                {/* Responsive Grid: 2x3 on mobile, 3x2 on desktop */}
+                {/* Responsive Grid: 2x3 on mobile, 3x2 on desktop - USING filteredSafariRoutes */}
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {(showAllPackages
-                    ? safariRoutes
-                    : safariRoutes.slice(0, 6)
+                    ? filteredSafariRoutes
+                    : filteredSafariRoutes.slice(0, 6)
                   ).map((route) => {
                     const isExpanded = expandedCards[route.id] || false;
                     const shouldTruncate =
@@ -2431,8 +2490,8 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   })}
                 </div>
 
-                {/* Dropdown Button - Show More/Less Packages */}
-                {safariRoutes.length > 6 && (
+                {/* Dropdown Button - Show More/Less Packages - USING filteredSafariRoutes */}
+                {filteredSafariRoutes.length > 6 && (
                   <div className="mt-8 text-center">
                     <button
                       onClick={() => setShowAllPackages(!showAllPackages)}
@@ -2452,8 +2511,8 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                         />
                       </svg>
                       {showAllPackages
-                        ? `Show Less Packages (${safariRoutes.length - 6} hidden)`
-                        : `Show More Packages (${safariRoutes.length - 6} more)`}
+                        ? `Show Less Packages (${filteredSafariRoutes.length - 6} hidden)`
+                        : `Show More Packages (${filteredSafariRoutes.length - 6} more)`}
                     </button>
                   </div>
                 )}
@@ -2634,7 +2693,8 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                     Select Safari Package
                   </h3>
                   <p className="text-gray-500 text-xs md:text-sm">
-                    Choose a safari route and customize your itinerary
+                    Choose a Lake Nakuru safari route and customize your
+                    itinerary
                   </p>
                 </div>
               </div>
@@ -2856,7 +2916,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           >
             <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
               <h2 className="text-2xl font-bold text-gray-800">
-                Create New Safari Package
+                Create New Lake Nakuru Safari Package
               </h2>
               <button
                 onClick={() => setShowAdminForm(false)}
@@ -2892,8 +2952,9 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
                   required
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  "Lake Nakuru → " will be added automatically
+                <p className="text-xs text-blue-600 mt-1 font-semibold">
+                  🦩 "Lake Nakuru → " will be added automatically if not
+                  included
                 </p>
               </div>
 
@@ -3001,7 +3062,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   type="submit"
                   className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all duration-300"
                 >
-                  Create Package
+                  Create Lake Nakuru Package
                 </button>
                 <button
                   type="button"
@@ -3028,7 +3089,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           >
             <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
               <h2 className="text-2xl font-bold text-gray-800">
-                Edit Safari Package
+                Edit Lake Nakuru Safari Package
               </h2>
               <button
                 onClick={() => setShowEditModal(false)}
@@ -3322,7 +3383,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
               <h2 className="text-2xl font-bold text-gray-800">
-                Complete Your Booking
+                Complete Your Lake Nakuru Booking
               </h2>
               <button
                 onClick={() => setShowBookingModal(false)}
