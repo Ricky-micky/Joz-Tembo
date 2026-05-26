@@ -30,6 +30,13 @@ const Taitahills = () => {
   // State for showing all packages (dropdown functionality)
   const [showAllPackages, setShowAllPackages] = useState(false);
 
+  // State for filtered packages (only those containing Taita Hills)
+  const [filteredSafariRoutes, setFilteredSafariRoutes] = useState([]);
+
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
   const toggleCardExpand = (cardId) => {
     setExpandedCards((prev) => ({
       ...prev,
@@ -65,6 +72,9 @@ const Taitahills = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingRoute, setEditingRoute] = useState(null);
 
+  // All packages from backend
+  const [safariRoutes, setSafariRoutes] = useState([]);
+
   const [adminForm, setAdminForm] = useState({
     routeName: "",
     description: "",
@@ -82,176 +92,168 @@ const Taitahills = () => {
     ],
   });
 
-  // EMPTY default routes - no local packages
-  const defaultSafariRoutes = [];
-
-  const [safariRoutes, setSafariRoutes] = useState(() => {
-    try {
-      const savedRoutes = localStorage.getItem("taitaHillsPackages");
-      if (savedRoutes) {
-        return JSON.parse(savedRoutes);
-      }
-      localStorage.setItem(
-        "taitaHillsPackages",
-        JSON.stringify(defaultSafariRoutes),
-      );
-      return defaultSafariRoutes;
-    } catch (error) {
-      console.error("Error loading Taita Hills packages:", error);
-      return defaultSafariRoutes;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("taitaHillsPackages", JSON.stringify(safariRoutes));
-    } catch (error) {
-      console.error("Error saving Taita Hills packages:", error);
-    }
-  }, [safariRoutes]);
-
-  const saveSafariRoutesToStorage = (routes) => {
-    try {
-      localStorage.setItem("taitaHillsPackages", JSON.stringify(routes));
-    } catch (error) {
-      console.error("Error saving to localStorage:", error);
-      Swal.fire({
-        title: "Storage Error",
-        text: "Could not save safari packages. Please try again.",
-        icon: "error",
-        confirmButtonColor: "#059669",
-      });
-    }
+  // Helper function to check if package contains Taita Hills
+  const isTaitaHillsPackage = (route) => {
+    if (!route || !route.name) return false;
+    const name = route.name.toLowerCase();
+    return name.startsWith("taita hills") || name.startsWith("taita");
   };
 
+  // Check authentication on mount and listen for auth changes
   useEffect(() => {
-    const checkBackendConnection = async () => {
-      try {
-        const packagesResponse = await fetch(
-          "http://localhost:5000/api/safari-cards",
-        );
-        if (packagesResponse.ok) {
-          const packagesData = await packagesResponse.json();
-          // Filter packages that start with or contain Taita Hills
-          const filteredPackages =
-            packagesData.success && packagesData.data
-              ? packagesData.data.filter(
-                  (pkg) =>
-                    pkg.name &&
-                    (pkg.name.toLowerCase().startsWith("taita hills") ||
-                      pkg.name.toLowerCase().startsWith("taita hills →") ||
-                      pkg.name.toLowerCase().includes("taita hills") ||
-                      pkg.name.toLowerCase().includes("taita")),
-                )
-              : [];
-
-          setBackendStatus({
-            connected: true,
-            packageCount: filteredPackages.length,
-          });
-
-          if (filteredPackages.length > 0) {
-            loadPackagesFromBackend(filteredPackages);
-          }
-        }
-      } catch (error) {
-        console.log("Backend not connected, using local storage only");
-        setBackendStatus({
-          connected: false,
-          packageCount: 0,
-        });
+    const checkAuth = () => {
+      const token = localStorage.getItem("access_token");
+      const user = localStorage.getItem("user");
+      if (token && user) {
+        setIsAuthenticated(true);
+        setCurrentUser(JSON.parse(user));
+      } else {
+        setIsAuthenticated(false);
+        setCurrentUser(null);
       }
     };
 
-    checkBackendConnection();
+    checkAuth();
+
+    // Listen for auth changes from footer
+    const handleAuthChange = () => {
+      checkAuth();
+    };
+
+    window.addEventListener("authChange", handleAuthChange);
+    window.addEventListener("storage", handleAuthChange);
+
+    return () => {
+      window.removeEventListener("authChange", handleAuthChange);
+      window.removeEventListener("storage", handleAuthChange);
+    };
   }, []);
 
-  const loadPackagesFromBackend = (backendPackages) => {
+  // Fetch packages from backend on mount
+  const fetchPackagesFromBackend = async () => {
+    setBackendLoading(true);
     try {
-      const convertedPackages = backendPackages.map((pkg) => {
-        const hasPrices = pkg.prices && pkg.prices.length > 0;
-        const basePrice = hasPrices ? pkg.prices[0] : null;
+      const response = await fetch("http://localhost:5000/api/safari-cards");
+      if (response.ok) {
+        const packagesData = await response.json();
+        if (packagesData.success && packagesData.data) {
+          // Filter only packages that start with Taita Hills
+          const taitaPackages = packagesData.data.filter(isTaitaHillsPackage);
 
-        return {
-          id: `backend_${pkg.id}`,
-          backendId: pkg.id,
-          name: pkg.name,
-          description: pkg.description || "",
-          duration: `${pkg.total_days || 5}-${(pkg.total_days || 5) + 2} days recommended`,
-          highlights: pkg.highlights || [],
-          fullItinerary: pkg.description || "",
-          priceOptions:
-            hasPrices && basePrice.prices
-              ? [
-                  {
-                    people: 2,
-                    price: basePrice.prices.pax_2_price || 270,
-                    currency: "usd",
-                  },
-                  {
-                    people: 4,
-                    price: basePrice.prices.pax_4_price || 220,
-                    currency: "usd",
-                  },
-                  {
-                    people: 6,
-                    price: basePrice.prices.pax_6_price || 190,
-                    currency: "usd",
-                  },
-                  {
-                    people: 8,
-                    price: basePrice.prices.pax_8_price || 170,
-                    currency: "usd",
-                  },
-                ]
-              : [
-                  { people: 2, price: 270, currency: "usd" },
-                  { people: 4, price: 220, currency: "usd" },
-                  { people: 6, price: 190, currency: "usd" },
-                  { people: 8, price: 170, currency: "usd" },
-                ],
-          priceRange: {
-            min:
-              hasPrices && basePrice.prices
-                ? Math.min(
-                    basePrice.prices.pax_2_price || 270,
-                    basePrice.prices.pax_4_price || 220,
-                    basePrice.prices.pax_6_price || 190,
-                    basePrice.prices.pax_8_price || 170,
-                  )
-                : 170,
-            max:
-              hasPrices && basePrice.prices
-                ? Math.max(
-                    basePrice.prices.pax_2_price || 270,
-                    basePrice.prices.pax_4_price || 220,
-                    basePrice.prices.pax_6_price || 190,
-                    basePrice.prices.pax_8_price || 170,
-                  )
-                : 500,
-          },
-        };
-      });
+          const convertedPackages = taitaPackages.map((pkg) => {
+            const hasPrices = pkg.prices && pkg.prices.length > 0;
+            const basePrice = hasPrices ? pkg.prices[0] : null;
 
-      const allPackages = [...safariRoutes.filter((pkg) => !pkg.backendId)];
-      convertedPackages.forEach((backendPkg) => {
-        const exists = allPackages.some(
-          (localPkg) =>
-            localPkg.backendId === backendPkg.backendId ||
-            localPkg.name === backendPkg.name,
-        );
-        if (!exists) {
-          allPackages.push(backendPkg);
+            return {
+              id: pkg.id,
+              backendId: pkg.id,
+              name: pkg.name,
+              description: pkg.description || "",
+              duration: `${pkg.total_days || 5}-${(pkg.total_days || 5) + 2} days recommended`,
+              highlights: pkg.highlights || [],
+              fullItinerary: pkg.description || "",
+              priceOptions:
+                hasPrices && basePrice.prices
+                  ? [
+                      {
+                        people: 2,
+                        price: basePrice.prices.pax_2_price || 270,
+                        currency: "usd",
+                      },
+                      {
+                        people: 4,
+                        price: basePrice.prices.pax_4_price || 220,
+                        currency: "usd",
+                      },
+                      {
+                        people: 6,
+                        price: basePrice.prices.pax_6_price || 190,
+                        currency: "usd",
+                      },
+                      {
+                        people: 8,
+                        price: basePrice.prices.pax_8_price || 170,
+                        currency: "usd",
+                      },
+                    ]
+                  : [
+                      { people: 2, price: 270, currency: "usd" },
+                      { people: 4, price: 220, currency: "usd" },
+                      { people: 6, price: 190, currency: "usd" },
+                      { people: 8, price: 170, currency: "usd" },
+                    ],
+              priceRange: {
+                min:
+                  hasPrices && basePrice.prices
+                    ? Math.min(
+                        basePrice.prices.pax_2_price || 270,
+                        basePrice.prices.pax_4_price || 220,
+                        basePrice.prices.pax_6_price || 190,
+                        basePrice.prices.pax_8_price || 170,
+                      )
+                    : 170,
+                max:
+                  hasPrices && basePrice.prices
+                    ? Math.max(
+                        basePrice.prices.pax_2_price || 270,
+                        basePrice.prices.pax_4_price || 220,
+                        basePrice.prices.pax_6_price || 190,
+                        basePrice.prices.pax_8_price || 170,
+                      )
+                    : 500,
+              },
+            };
+          });
+
+          setSafariRoutes(convertedPackages);
+          setBackendStatus({
+            connected: true,
+            packageCount: convertedPackages.length,
+          });
+        } else {
+          setSafariRoutes([]);
+          setBackendStatus({
+            connected: true,
+            packageCount: 0,
+          });
         }
-      });
-
-      setSafariRoutes(allPackages);
-      saveSafariRoutesToStorage(allPackages);
+      } else {
+        throw new Error("Failed to fetch packages");
+      }
     } catch (error) {
-      console.error("Error loading packages from backend:", error);
+      console.error("Error fetching from backend:", error);
+      setBackendStatus({
+        connected: false,
+        packageCount: 0,
+      });
+      setSafariRoutes([]);
+      // Only show error to admins
+      if (isAuthenticated) {
+        Swal.fire({
+          title: "Backend Connection Failed",
+          text: "Could not connect to the database. Please ensure the backend server is running on port 5000.",
+          icon: "error",
+          confirmButtonColor: "#059669",
+        });
+      }
+    } finally {
+      setBackendLoading(false);
     }
   };
 
+  // Filter packages to only show those starting with Taita Hills
+  useEffect(() => {
+    const filtered = safariRoutes.filter((route) => isTaitaHillsPackage(route));
+    setFilteredSafariRoutes(filtered);
+    setShowAllPackages(false);
+  }, [safariRoutes]);
+
+  // Check backend connection on mount
+  useEffect(() => {
+    fetchPackagesFromBackend();
+  }, []);
+
+  // Check for existing lodge selection from localStorage (only for booking data)
   useEffect(() => {
     const checkExistingSelection = () => {
       try {
@@ -523,7 +525,10 @@ const Taitahills = () => {
   const handleEditPackage = (route) => {
     setEditingRoute(route);
     setAdminForm({
-      routeName: route.name.replace("Taita Hills → ", "").trim(),
+      routeName: route.name
+        .replace("Taita Hills → ", "")
+        .replace("Taita Hills ", "")
+        .trim(),
       description: route.description,
       duration: route.duration,
       highlights: route.highlights.join(", "),
@@ -536,11 +541,22 @@ const Taitahills = () => {
   const handleUpdatePackage = async (e) => {
     e.preventDefault();
 
-    const routeName =
-      adminForm.routeName.toLowerCase().includes("taita hills") ||
-      adminForm.routeName.toLowerCase().includes("taita")
-        ? adminForm.routeName
-        : `Taita Hills → ${adminForm.routeName}`;
+    const routeName = adminForm.routeName
+      .toLowerCase()
+      .startsWith("taita hills")
+      ? adminForm.routeName
+      : `Taita Hills → ${adminForm.routeName}`;
+
+    // Validate that the package name starts with Taita Hills
+    if (!routeName.toLowerCase().startsWith("taita hills")) {
+      Swal.fire({
+        title: "Invalid Package Name",
+        text: "All packages on this page must start with 'Taita Hills'. Please ensure your package is for Taita Hills Wildlife Sanctuary.",
+        icon: "error",
+        confirmButtonColor: "#059669",
+      });
+      return;
+    }
 
     const prices = adminForm.priceOptions.map((option) => option.price);
     const minPrice = Math.min(...prices);
@@ -552,72 +568,121 @@ const Taitahills = () => {
       .filter((h) => h.length > 0);
 
     const updatedRoute = {
-      ...editingRoute,
+      id: editingRoute.backendId || editingRoute.id,
       name: routeName,
       description: adminForm.description,
       duration: adminForm.duration,
       highlights: highlightsArray,
-      fullItinerary: adminForm.itinerary,
-      priceOptions: adminForm.priceOptions,
-      priceRange: { min: minPrice, max: maxPrice },
+      total_days: parseInt(adminForm.duration) || 5,
+      prices: [
+        {
+          people: 2,
+          prices: {
+            pax_2_price:
+              adminForm.priceOptions.find((o) => o.people === 2)?.price || 270,
+            pax_4_price:
+              adminForm.priceOptions.find((o) => o.people === 4)?.price || 220,
+            pax_6_price:
+              adminForm.priceOptions.find((o) => o.people === 6)?.price || 190,
+            pax_8_price:
+              adminForm.priceOptions.find((o) => o.people === 8)?.price || 170,
+          },
+        },
+      ],
     };
 
-    const updatedRoutes = safariRoutes.map((route) =>
-      route.id === editingRoute.id ? updatedRoute : route,
-    );
+    try {
+      setIsLoading(true);
 
-    setSafariRoutes(updatedRoutes);
-    saveSafariRoutesToStorage(updatedRoutes);
+      const response = await fetch(
+        `http://localhost:5000/api/safari-cards/${editingRoute.backendId || editingRoute.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          },
+          body: JSON.stringify(updatedRoute),
+        },
+      );
 
-    if (selectedRoute && selectedRoute.id === editingRoute.id) {
-      setSelectedRoute(updatedRoute);
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        Swal.fire({
+          title: "✅ Package Updated!",
+          html: `
+            <div class="text-left">
+              <p><strong>${updatedRoute.name}</strong> has been updated successfully in the database.</p>
+              <div class="mt-4 p-3 bg-gray-50 rounded">
+                <p class="text-sm"><strong>Price Range:</strong> $${minPrice} - $${maxPrice}</p>
+                <p class="text-sm"><strong>Duration:</strong> ${updatedRoute.duration}</p>
+              </div>
+            </div>
+          `,
+          icon: "success",
+          confirmButtonColor: "#059669",
+        });
+
+        // Refresh packages from backend
+        await fetchPackagesFromBackend();
+      } else {
+        throw new Error(result.error || "Failed to update package");
+      }
+    } catch (error) {
+      console.error("Error updating package:", error);
+      Swal.fire({
+        title: "Update Failed",
+        text: "Could not update the package in the database. Please try again.",
+        icon: "error",
+        confirmButtonColor: "#059669",
+      });
+    } finally {
+      setIsLoading(false);
+      setShowEditModal(false);
+      setEditingRoute(null);
     }
-
-    Swal.fire({
-      title: "✅ Package Updated!",
-      html: `
-        <div class="text-left">
-          <p><strong>${updatedRoute.name}</strong> has been updated successfully.</p>
-          <div class="mt-4 p-3 bg-gray-50 rounded">
-            <p class="text-sm"><strong>Price Range:</strong> $${minPrice} - $${maxPrice}</p>
-            <p class="text-sm"><strong>Duration:</strong> ${updatedRoute.duration}</p>
-          </div>
-        </div>
-      `,
-      icon: "success",
-      confirmButtonColor: "#059669",
-    });
-
-    setShowEditModal(false);
-    setEditingRoute(null);
   };
 
   const savePackageToBackend = async (packageData) => {
     try {
-      setIsLoading(true);
-
-      const routeName =
-        packageData.name.toLowerCase().includes("taita hills") ||
-        packageData.name.toLowerCase().includes("taita")
-          ? packageData.name
-          : `Taita Hills → ${packageData.name}`;
+      const routeName = packageData.name.toLowerCase().startsWith("taita hills")
+        ? packageData.name
+        : `Taita Hills → ${packageData.name}`;
 
       const backendPackage = {
         name: routeName,
         description: packageData.description,
         duration: packageData.duration || "3-5 days recommended",
         itinerary: packageData.fullItinerary || "",
-        priceOptions: packageData.priceOptions.map((option) => ({
-          people: option.people,
-          price: option.price,
-          currency: option.currency || "usd",
-        })),
+        total_days: parseInt(packageData.duration) || 5,
+        highlights: packageData.highlights,
+        prices: [
+          {
+            people: 2,
+            prices: {
+              pax_2_price:
+                packageData.priceOptions.find((o) => o.people === 2)?.price ||
+                270,
+              pax_4_price:
+                packageData.priceOptions.find((o) => o.people === 4)?.price ||
+                220,
+              pax_6_price:
+                packageData.priceOptions.find((o) => o.people === 6)?.price ||
+                190,
+              pax_8_price:
+                packageData.priceOptions.find((o) => o.people === 8)?.price ||
+                170,
+            },
+          },
+        ],
       };
 
       const response = await fetch("http://localhost:5000/api/safari-cards", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
         },
         body: JSON.stringify(backendPackage),
       });
@@ -625,154 +690,13 @@ const Taitahills = () => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        Swal.fire({
-          title: "✅ Success!",
-          text: "Safari package saved to database successfully",
-          icon: "success",
-          confirmButtonColor: "#059669",
-        });
-
-        return {
-          success: true,
-          data: result,
-          backendId: result.package_id,
-        };
+        return { success: true, data: result, backendId: result.package_id };
       } else {
         throw new Error(result.error || "Failed to save package");
       }
     } catch (error) {
       console.error("Error saving to backend:", error);
-      Swal.fire({
-        title: "Backend Error",
-        text: "Could not save to database. Saved locally instead.",
-        icon: "warning",
-        confirmButtonColor: "#059669",
-      });
       return { success: false, error: error.message };
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const syncWithBackend = async () => {
-    setBackendLoading(true);
-    Swal.fire({
-      title: "Syncing...",
-      text: "Please wait while we sync with the database",
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      },
-    });
-
-    try {
-      const response = await fetch("http://localhost:5000/api/safari-cards");
-      if (response.ok) {
-        const packagesData = await response.json();
-
-        if (packagesData.success) {
-          const filteredPackages = packagesData.data.filter(
-            (pkg) =>
-              pkg.name &&
-              (pkg.name.toLowerCase().startsWith("taita hills") ||
-                pkg.name.toLowerCase().startsWith("taita hills →") ||
-                pkg.name.toLowerCase().includes("taita hills") ||
-                pkg.name.toLowerCase().includes("taita")),
-          );
-
-          const backendPackages = filteredPackages.map((pkg) => {
-            const hasPrices = pkg.prices && pkg.prices.length > 0;
-            const basePrice = hasPrices ? pkg.prices[0] : null;
-
-            return {
-              id: `backend_${pkg.id}`,
-              backendId: pkg.id,
-              name: pkg.name,
-              description: pkg.description || "",
-              duration: `${pkg.total_days || 5}-${(pkg.total_days || 5) + 2} days recommended`,
-              highlights: pkg.highlights || [],
-              fullItinerary: pkg.description || "",
-              priceOptions:
-                hasPrices && basePrice.prices
-                  ? [
-                      {
-                        people: 2,
-                        price: basePrice.prices.pax_2_price || 270,
-                        currency: "usd",
-                      },
-                      {
-                        people: 4,
-                        price: basePrice.prices.pax_4_price || 220,
-                        currency: "usd",
-                      },
-                      {
-                        people: 6,
-                        price: basePrice.prices.pax_6_price || 190,
-                        currency: "usd",
-                      },
-                      {
-                        people: 8,
-                        price: basePrice.prices.pax_8_price || 170,
-                        currency: "usd",
-                      },
-                    ]
-                  : [
-                      { people: 2, price: 270, currency: "usd" },
-                      { people: 4, price: 220, currency: "usd" },
-                      { people: 6, price: 190, currency: "usd" },
-                      { people: 8, price: 170, currency: "usd" },
-                    ],
-              priceRange: {
-                min:
-                  hasPrices && basePrice.prices
-                    ? Math.min(
-                        basePrice.prices.pax_2_price || 270,
-                        basePrice.prices.pax_4_price || 220,
-                        basePrice.prices.pax_6_price || 190,
-                        basePrice.prices.pax_8_price || 170,
-                      )
-                    : 170,
-                max:
-                  hasPrices && basePrice.prices
-                    ? Math.max(
-                        basePrice.prices.pax_2_price || 270,
-                        basePrice.prices.pax_4_price || 220,
-                        basePrice.prices.pax_6_price || 190,
-                        basePrice.prices.pax_8_price || 170,
-                      )
-                    : 500,
-              },
-            };
-          });
-
-          const localPackages = safariRoutes.filter((pkg) => !pkg.backendId);
-          const allPackages = [...localPackages, ...backendPackages];
-
-          setSafariRoutes(allPackages);
-          saveSafariRoutesToStorage(allPackages);
-
-          setBackendStatus((prev) => ({
-            ...prev,
-            packageCount: backendPackages.length,
-          }));
-
-          Swal.fire({
-            title: "✅ Sync Complete!",
-            text: `Loaded ${backendPackages.length} Taita Hills packages from backend`,
-            icon: "success",
-            confirmButtonColor: "#059669",
-          });
-        }
-      }
-    } catch (error) {
-      Swal.fire({
-        title: "Sync Failed",
-        text: "Could not sync with backend. Please check your connection.",
-        icon: "error",
-        confirmButtonColor: "#059669",
-      });
-    } finally {
-      setBackendLoading(false);
     }
   };
 
@@ -857,11 +781,22 @@ const Taitahills = () => {
   const handleAdminSubmit = async (e) => {
     e.preventDefault();
 
-    const routeName =
-      adminForm.routeName.toLowerCase().includes("taita hills") ||
-      adminForm.routeName.toLowerCase().includes("taita")
-        ? adminForm.routeName
-        : `Taita Hills → ${adminForm.routeName}`;
+    const routeName = adminForm.routeName
+      .toLowerCase()
+      .startsWith("taita hills")
+      ? adminForm.routeName
+      : `Taita Hills → ${adminForm.routeName}`;
+
+    // Validate that the package name starts with Taita Hills
+    if (!routeName.toLowerCase().startsWith("taita hills")) {
+      Swal.fire({
+        title: "Invalid Package Name",
+        text: "All packages on this page must start with 'Taita Hills'. This page only accepts Taita Hills Wildlife Sanctuary safari packages.",
+        icon: "error",
+        confirmButtonColor: "#059669",
+      });
+      return;
+    }
 
     const prices = adminForm.priceOptions.map((option) => option.price);
     const minPrice = Math.min(...prices);
@@ -873,7 +808,6 @@ const Taitahills = () => {
       .filter((h) => h.length > 0);
 
     const newRoute = {
-      id: Date.now(),
       name: routeName,
       description: adminForm.description,
       duration: adminForm.duration,
@@ -883,83 +817,110 @@ const Taitahills = () => {
       priceRange: { min: minPrice, max: maxPrice },
     };
 
-    let backendResult = null;
-    if (backendStatus.connected) {
-      backendResult = await savePackageToBackend(newRoute);
+    const backendResult = await savePackageToBackend(newRoute);
 
-      if (backendResult.success && backendResult.backendId) {
-        newRoute.backendId = backendResult.backendId;
-        newRoute.id = `backend_${backendResult.backendId}`;
-      }
-    }
-
-    const updatedRoutes = [...safariRoutes, newRoute];
-    setSafariRoutes(updatedRoutes);
-    saveSafariRoutesToStorage(updatedRoutes);
-
-    Swal.fire({
-      title: "✅ Package Created!",
-      html: `
-        <div class="text-left">
-          <p><strong>${newRoute.name}</strong> has been created successfully.</p>
-          <div class="mt-4 p-3 bg-gray-50 rounded">
-            <p class="text-sm"><strong>Status:</strong> ${backendStatus.connected && backendResult?.success ? "Saved to Database ✓" : "Saved Locally Only"}</p>
-            <p class="text-sm"><strong>Price Range:</strong> $${minPrice} - $${maxPrice}</p>
-            <p class="text-sm"><strong>Duration:</strong> ${newRoute.duration}</p>
+    if (backendResult.success) {
+      Swal.fire({
+        title: "✅ Package Created!",
+        html: `
+          <div class="text-left">
+            <p><strong>${newRoute.name}</strong> has been created successfully in the database.</p>
+            <div class="mt-4 p-3 bg-gray-50 rounded">
+              <p class="text-sm"><strong>Price Range:</strong> $${minPrice} - $${maxPrice}</p>
+              <p class="text-sm"><strong>Duration:</strong> ${newRoute.duration}</p>
+            </div>
           </div>
-        </div>
-      `,
-      icon: "success",
-      confirmButtonColor: "#059669",
-    });
+        `,
+        icon: "success",
+        confirmButtonColor: "#059669",
+      });
 
-    setAdminForm({
-      routeName: "",
-      description: "",
-      duration: "3-5 days recommended",
-      highlights: "",
-      itinerary: "",
-      priceOptions: [
-        { people: 2, price: 270, currency: "usd" },
-        { people: 3, price: 240, currency: "usd" },
-        { people: 4, price: 220, currency: "usd" },
-        { people: 5, price: 200, currency: "usd" },
-        { people: 6, price: 190, currency: "usd" },
-        { people: 7, price: 180, currency: "usd" },
-        { people: 8, price: 170, currency: "usd" },
-      ],
-    });
-    setShowAdminForm(false);
+      // Refresh packages from backend
+      await fetchPackagesFromBackend();
+
+      setAdminForm({
+        routeName: "",
+        description: "",
+        duration: "3-5 days recommended",
+        highlights: "",
+        itinerary: "",
+        priceOptions: [
+          { people: 2, price: 270, currency: "usd" },
+          { people: 3, price: 240, currency: "usd" },
+          { people: 4, price: 220, currency: "usd" },
+          { people: 5, price: 200, currency: "usd" },
+          { people: 6, price: 190, currency: "usd" },
+          { people: 7, price: 180, currency: "usd" },
+          { people: 8, price: 170, currency: "usd" },
+        ],
+      });
+      setShowAdminForm(false);
+    } else {
+      Swal.fire({
+        title: "Creation Failed",
+        text: "Could not save the package to the database. Please try again.",
+        icon: "error",
+        confirmButtonColor: "#059669",
+      });
+    }
   };
 
-  const handleDeletePackage = (routeId) => {
+  const handleDeletePackage = (routeId, backendId) => {
     Swal.fire({
       title: "Delete Safari Package?",
-      text: "Are you sure you want to permanently delete this safari package? This action cannot be undone.",
+      text: "Are you sure you want to permanently delete this safari package from the database? This action cannot be undone.",
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#059669",
       cancelButtonColor: "#6b7280",
       confirmButtonText: "Yes, delete permanently!",
       cancelButtonText: "Cancel",
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed) {
-        const updatedRoutes = safariRoutes.filter(
-          (route) => route.id !== routeId,
-        );
-        setSafariRoutes(updatedRoutes);
-        saveSafariRoutesToStorage(updatedRoutes);
+        try {
+          const idToDelete = backendId || routeId;
+          const response = await fetch(
+            `http://localhost:5000/api/safari-cards/${idToDelete}`,
+            {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+              },
+            },
+          );
 
-        if (selectedRoute && selectedRoute.id === routeId) {
-          setSelectedRoute(null);
+          const resultData = await response.json();
+
+          if (response.ok && resultData.success) {
+            Swal.fire({
+              title: "Deleted Permanently!",
+              text: "The safari package has been permanently deleted from the database.",
+              icon: "success",
+              confirmButtonColor: "#059669",
+            });
+
+            if (
+              selectedRoute &&
+              (selectedRoute.backendId === idToDelete ||
+                selectedRoute.id === idToDelete)
+            ) {
+              setSelectedRoute(null);
+            }
+
+            // Refresh packages from backend
+            await fetchPackagesFromBackend();
+          } else {
+            throw new Error(resultData.error || "Failed to delete package");
+          }
+        } catch (error) {
+          console.error("Error deleting package:", error);
+          Swal.fire({
+            title: "Delete Failed",
+            text: "Could not delete the package from the database. Please try again.",
+            icon: "error",
+            confirmButtonColor: "#059669",
+          });
         }
-
-        Swal.fire({
-          title: "Deleted Permanently!",
-          text: "The safari package has been permanently deleted and removed from storage.",
-          icon: "success",
-          confirmButtonColor: "#059669",
-        });
       }
     });
   };
@@ -1854,97 +1815,101 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                     : "Select a lodge first to view available packages"}
                 </p>
                 <p className="text-sm text-emerald-600 mt-1">
-                  📍 Only showing packages starting from Taita Hills
+                  📍 Showing {filteredSafariRoutes.length} packages starting
+                  with "Taita Hills"
                 </p>
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
-                {backendStatus.connected && (
+                <button
+                  onClick={fetchPackagesFromBackend}
+                  disabled={backendLoading}
+                  className={`${backendLoading ? "bg-gray-400" : "bg-emerald-600 hover:bg-emerald-700"} text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    {backendLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-4 h-4 sm:w-5 sm:h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                          />
+                        </svg>
+                        Refresh
+                      </>
+                    )}
+                  </div>
+                </button>
+                {isAuthenticated && (
                   <button
-                    onClick={syncWithBackend}
-                    disabled={backendLoading}
-                    className={`${backendLoading ? "bg-gray-400" : "bg-emerald-600 hover:bg-emerald-700"} text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none`}
+                    onClick={() => setShowAdminForm(true)}
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none"
                   >
                     <div className="flex items-center justify-center gap-2">
-                      {backendLoading ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Syncing...
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            className="w-4 h-4 sm:w-5 sm:h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                            />
-                          </svg>
-                          Sync
-                        </>
-                      )}
+                      <svg
+                        className="w-4 h-4 sm:w-5 sm:h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                        />
+                      </svg>
+                      Add New Package
                     </div>
                   </button>
                 )}
-                <button
-                  onClick={() => setShowAdminForm(true)}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none"
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <svg
-                      className="w-4 h-4 sm:w-5 sm:h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                      />
-                    </svg>
-                    Add New Package
-                  </div>
-                </button>
               </div>
             </div>
 
-            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-3 h-3 rounded-full ${backendStatus.connected ? "bg-green-500" : "bg-red-500"}`}
-                  ></div>
-                  <div>
-                    <p className="text-sm text-blue-800 font-medium">
-                      {backendStatus.connected
-                        ? "Backend Database Connected"
-                        : "Local Storage Only (Backend Offline)"}
-                    </p>
-                    <p className="text-xs text-blue-600">
-                      {backendStatus.connected
-                        ? `${backendStatus.packageCount} Taita Hills packages in database, ${safariRoutes.length} locally`
-                        : "All data stored locally in browser"}
-                    </p>
+            {/* Admin-only backend status info */}
+            {isAuthenticated && (
+              <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-3 h-3 rounded-full ${backendStatus.connected ? "bg-green-500" : "bg-red-500"}`}
+                    ></div>
+                    <div>
+                      <p className="text-sm text-blue-800 font-medium">
+                        {backendStatus.connected
+                          ? "Backend Database Connected"
+                          : "Backend Offline - Cannot load packages"}
+                      </p>
+                      <p className="text-xs text-blue-600">
+                        {backendStatus.connected
+                          ? `${backendStatus.packageCount} Taita Hills packages in database, ${filteredSafariRoutes.length} matching filter`
+                          : "Please ensure backend server is running on port 5000"}
+                      </p>
+                    </div>
                   </div>
+                  {backendStatus.connected ? (
+                    <div className="text-xs text-green-700 bg-green-100 px-3 py-1 rounded-full">
+                      Database Active
+                    </div>
+                  ) : (
+                    <div className="text-xs text-red-700 bg-red-100 px-3 py-1 rounded-full">
+                      Offline Mode
+                    </div>
+                  )}
                 </div>
-                {backendStatus.connected ? (
-                  <div className="text-xs text-green-700 bg-green-100 px-3 py-1 rounded-full">
-                    Database Active
-                  </div>
-                ) : (
-                  <div className="text-xs text-red-700 bg-red-100 px-3 py-1 rounded-full">
-                    Offline Mode
-                  </div>
-                )}
               </div>
-            </div>
+            )}
 
             {!selectedLodge ? (
               <div className="bg-gray-50 border border-gray-300 rounded-xl p-8 text-center">
@@ -1975,7 +1940,19 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   Select Your Lodge Now
                 </button>
               </div>
-            ) : safariRoutes.length === 0 ? (
+            ) : backendLoading ? (
+              <div className="text-center py-12 bg-white rounded-xl shadow-lg border border-emerald-200">
+                <div className="flex justify-center mb-4">
+                  <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                  Loading Packages...
+                </h3>
+                <p className="text-gray-600">
+                  Please wait while we fetch packages from the database.
+                </p>
+              </div>
+            ) : filteredSafariRoutes.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-xl shadow-lg border border-emerald-200">
                 <svg
                   className="w-16 h-16 text-gray-400 mx-auto mb-4"
@@ -1991,36 +1968,70 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   />
                 </svg>
                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  No Safari Packages Available
+                  No Taita Hills Packages Available
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  Click "Sync" to load packages from database or "Add New
-                  Package" to create your first Taita Hills safari package.
+                  {backendStatus.connected
+                    ? `No packages starting with "Taita Hills" were found in the database. ${
+                        isAuthenticated
+                          ? 'Click "Add New Package" to create your first Taita Hills safari package.'
+                          : "Please sign in as admin to add packages."
+                      }`
+                    : "Cannot connect to the database. Please ensure the backend server is running on port 5000."}
                 </p>
-                <div className="flex gap-4 justify-center">
-                  {backendStatus.connected && (
-                    <button
-                      onClick={syncWithBackend}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
-                    >
-                      Sync with Database
-                    </button>
-                  )}
+                {isAuthenticated ? (
                   <button
                     onClick={() => setShowAdminForm(true)}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
                   >
-                    Create First Package
+                    Create Taita Hills Package
                   </button>
-                </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      const event = new CustomEvent("authChange");
+                      window.dispatchEvent(event);
+                    }}
+                    className="bg-[#1a2a4f] hover:bg-[#0f1a33] text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Sign In as Admin
+                  </button>
+                )}
               </div>
             ) : (
               <>
-                {/* Responsive Grid: 2x3 on mobile, 3x2 on desktop */}
+                {/* Info banner about filtering - only visible to admins */}
+                {isAuthenticated &&
+                  safariRoutes.length > filteredSafariRoutes.length && (
+                    <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <span>
+                          Showing {filteredSafariRoutes.length} of{" "}
+                          {safariRoutes.length} total packages from database.
+                          Only packages starting with "Taita Hills" are
+                          displayed.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {(showAllPackages
-                    ? safariRoutes
-                    : safariRoutes.slice(0, 6)
+                    ? filteredSafariRoutes
+                    : filteredSafariRoutes.slice(0, 6)
                   ).map((route) => {
                     const isExpanded = expandedCards[route.id] || false;
                     const shouldTruncate =
@@ -2042,16 +2053,17 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                         key={route.id}
                         className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 border border-emerald-200 relative group"
                       >
-                        <div className="absolute top-2 left-2 z-10 flex gap-1">
-                          {route.backendId && (
+                        {/* Admin-only badges */}
+                        {isAuthenticated && (
+                          <div className="absolute top-2 left-2 z-10 flex gap-1">
                             <span className="bg-emerald-600 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
                               ✓ DB
                             </span>
-                          )}
-                          <span className="bg-purple-600 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
-                            Local
-                          </span>
-                        </div>
+                            <span className="bg-green-700 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
+                              Taita Hills Start
+                            </span>
+                          </div>
+                        )}
 
                         <div className="absolute top-2 right-2 z-10">
                           <span className="bg-emerald-600 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
@@ -2059,46 +2071,51 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                           </span>
                         </div>
 
-                        <div className="absolute top-12 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          <button
-                            onClick={() => handleEditPackage(route)}
-                            className="bg-purple-600 hover:bg-purple-700 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
-                            title="Edit Package"
-                          >
-                            <svg
-                              className="w-3 h-3 md:w-4 md:h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                        {/* Admin-only edit/delete buttons */}
+                        {isAuthenticated && (
+                          <div className="absolute top-12 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <button
+                              onClick={() => handleEditPackage(route)}
+                              className="bg-purple-600 hover:bg-purple-700 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
+                              title="Edit Package"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeletePackage(route.id)}
-                            className="bg-red-500 hover:bg-red-600 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
-                            title="Delete Package"
-                          >
-                            <svg
-                              className="w-3 h-3 md:w-4 md:h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                              <svg
+                                className="w-3 h-3 md:w-4 md:h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDeletePackage(route.id, route.backendId)
+                              }
+                              className="bg-red-500 hover:bg-red-600 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
+                              title="Delete Package"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
-                        </div>
+                              <svg
+                                className="w-3 h-3 md:w-4 md:h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
 
                         <div className="h-24 md:h-32 bg-gradient-to-r from-emerald-600 to-emerald-700 flex items-center justify-center">
                           <div className="text-white text-center p-2">
@@ -2252,8 +2269,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   })}
                 </div>
 
-                {/* Dropdown Button - Show More/Less Packages */}
-                {safariRoutes.length > 6 && (
+                {filteredSafariRoutes.length > 6 && (
                   <div className="mt-8 text-center">
                     <button
                       onClick={() => setShowAllPackages(!showAllPackages)}
@@ -2273,8 +2289,8 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                         />
                       </svg>
                       {showAllPackages
-                        ? `Show Less Packages (${safariRoutes.length - 6} hidden)`
-                        : `Show More Packages (${safariRoutes.length - 6} more)`}
+                        ? `Show Less Packages (${filteredSafariRoutes.length - 6} hidden)`
+                        : `Show More Packages (${filteredSafariRoutes.length - 6} more)`}
                     </button>
                   </div>
                 )}
@@ -2670,8 +2686,9 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-emerald-500"
                   required
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  "Taita Hills → " will be added automatically if not present
+                <p className="text-xs text-emerald-600 mt-1 font-semibold">
+                  🌿 "Taita Hills → " will be added automatically if not
+                  included
                 </p>
               </div>
 

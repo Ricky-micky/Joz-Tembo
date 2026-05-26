@@ -35,6 +35,13 @@ const TsavoEast = () => {
   // State for showing all packages (dropdown functionality)
   const [showAllPackages, setShowAllPackages] = useState(false);
 
+  // State for filtered packages (only those starting with Tsavo East)
+  const [filteredSafariRoutes, setFilteredSafariRoutes] = useState([]);
+
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
   const toggleCardExpand = (cardId) => {
     setExpandedCards((prev) => ({
       ...prev,
@@ -70,6 +77,9 @@ const TsavoEast = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingRoute, setEditingRoute] = useState(null);
 
+  // All packages from backend
+  const [safariRoutes, setSafariRoutes] = useState([]);
+
   const [adminForm, setAdminForm] = useState({
     routeName: "",
     description: "",
@@ -94,255 +104,165 @@ const TsavoEast = () => {
     return trimmedLower.startsWith("tsavo east");
   };
 
-  // DEFAULT safari routes - only used if localStorage is empty
-  const defaultSafariRoutes = [
-    {
-      id: 1,
-      name: "Tsavo East → Tsavo West → Amboseli",
-      description:
-        "Comprehensive southern circuit exploring three major parks with diverse landscapes from savannah to volcanic terrain. This is a longer description to test the show more functionality on the card.",
-      duration: "6-8 days recommended",
-      highlights: ["Red elephants", "Mzima Springs", "Kilimanjaro views"],
-      fullItinerary:
-        "Day 1: Arrival at Tsavo East, afternoon game drive to spot red elephants. Day 2: Full day Tsavo East with Lugard Falls and Aruba Dam visit. Day 3: Travel to Tsavo West, visit Mzima Springs. Day 4: Full day Tsavo West game drives. Day 5: Travel to Amboseli. Day 6: Kilimanjaro views and elephant tracking. Day 7: Morning game drive, departure.",
-      priceOptions: [
-        { people: 2, price: 370, currency: "euro" },
-        { people: 3, price: 330, currency: "euro" },
-        { people: 4, price: 300, currency: "euro" },
-        { people: 5, price: 280, currency: "euro" },
-        { people: 6, price: 260, currency: "euro" },
-        { people: 7, price: 250, currency: "euro" },
-        { people: 8, price: 240, currency: "euro" },
-      ],
-      priceRange: { min: 240, max: 370 },
-    },
-    {
-      id: 2,
-      name: "Tsavo East Exclusive Safari",
-      description:
-        "Deep exploration of Tsavo East's vast wilderness with focus on big game and bird watching. Perfect for wildlife enthusiasts seeking an immersive experience.",
-      duration: "3-5 days recommended",
-      highlights: [
-        "Lugard Falls",
-        "Aruba Dam",
-        "Yatta Plateau",
-        "Red Elephants",
-      ],
-      fullItinerary:
-        "Day 1: Arrival, afternoon game drive to spot red elephants. Day 2: Full day exploring Lugard Falls and Aruba Dam. Day 3: Yatta Plateau visit and wildlife viewing. Day 4: Morning game drive, cultural visit. Day 5: Final game drive, departure.",
-      priceOptions: [
-        { people: 2, price: 350, currency: "euro" },
-        { people: 3, price: 320, currency: "euro" },
-        { people: 4, price: 290, currency: "euro" },
-        { people: 5, price: 270, currency: "euro" },
-        { people: 6, price: 250, currency: "euro" },
-        { people: 7, price: 240, currency: "euro" },
-        { people: 8, price: 230, currency: "euro" },
-      ],
-      priceRange: { min: 230, max: 350 },
-    },
-    {
-      id: 3,
-      name: "Tsavo East → Coastal Beach Extension",
-      description:
-        "Combine wilderness adventure with relaxing beach time on the Kenyan coast. Experience the best of both worlds in one unforgettable trip.",
-      duration: "5-7 days recommended",
-      highlights: ["Game drives", "Beach relaxation", "Cultural visits"],
-      fullItinerary:
-        "Day 1-3: Tsavo East safari with red elephant viewing. Day 4: Travel to Diani Beach. Day 5-6: Beach relaxation, snorkeling, and water activities. Day 7: Departure from coast.",
-      priceOptions: [
-        { people: 2, price: 450, currency: "euro" },
-        { people: 3, price: 400, currency: "euro" },
-        { people: 4, price: 380, currency: "euro" },
-        { people: 5, price: 350, currency: "euro" },
-        { people: 6, price: 330, currency: "euro" },
-        { people: 7, price: 310, currency: "euro" },
-        { people: 8, price: 300, currency: "euro" },
-      ],
-      priceRange: { min: 300, max: 450 },
-    },
-  ];
-
-  const [safariRoutes, setSafariRoutes] = useState(() => {
-    try {
-      const savedRoutes = localStorage.getItem("tsavoEastPackages");
-      if (savedRoutes) {
-        const parsed = JSON.parse(savedRoutes);
-        // Filter saved routes to ensure they start with "Tsavo East"
-        const filtered = parsed.filter((route) =>
-          startsWithTsavoEast(route.name),
-        );
-        if (filtered.length !== parsed.length) {
-          localStorage.setItem("tsavoEastPackages", JSON.stringify(filtered));
-        }
-        return filtered.length > 0 ? filtered : defaultSafariRoutes;
-      }
-      localStorage.setItem(
-        "tsavoEastPackages",
-        JSON.stringify(defaultSafariRoutes),
-      );
-      return defaultSafariRoutes;
-    } catch (error) {
-      console.error("Error loading safari packages:", error);
-      return defaultSafariRoutes;
-    }
-  });
-
+  // Check authentication on mount and listen for auth changes
   useEffect(() => {
-    try {
-      // Only save routes that start with "Tsavo East"
-      const validRoutes = safariRoutes.filter((route) =>
-        startsWithTsavoEast(route.name),
-      );
-      localStorage.setItem("tsavoEastPackages", JSON.stringify(validRoutes));
-    } catch (error) {
-      console.error("Error saving safari packages:", error);
-    }
-  }, [safariRoutes]);
-
-  const saveSafariRoutesToStorage = (routes) => {
-    try {
-      // Only save routes that start with "Tsavo East"
-      const validRoutes = routes.filter((route) =>
-        startsWithTsavoEast(route.name),
-      );
-      localStorage.setItem("tsavoEastPackages", JSON.stringify(validRoutes));
-    } catch (error) {
-      console.error("Error saving to localStorage:", error);
-      Swal.fire({
-        title: "Storage Error",
-        text: "Could not save safari packages. Please try again.",
-        icon: "error",
-        confirmButtonColor: "#f97316",
-      });
-    }
-  };
-
-  useEffect(() => {
-    const checkBackendConnection = async () => {
-      try {
-        const packagesResponse = await fetch(
-          "http://localhost:5000/api/safari-cards",
-        );
-        if (packagesResponse.ok) {
-          const packagesData = await packagesResponse.json();
-          // STRICT FILTERING: Only packages that start with "Tsavo East"
-          const filteredPackages =
-            packagesData.success && packagesData.data
-              ? packagesData.data.filter(
-                  (pkg) => pkg.name && startsWithTsavoEast(pkg.name),
-                )
-              : [];
-
-          setBackendStatus({
-            connected: true,
-            packageCount: filteredPackages.length,
-          });
-
-          if (filteredPackages.length > 0) {
-            loadPackagesFromBackend(filteredPackages);
-          }
-        }
-      } catch (error) {
-        console.log("Backend not connected, using local storage only");
-        setBackendStatus({
-          connected: false,
-          packageCount: 0,
-        });
+    const checkAuth = () => {
+      const token = localStorage.getItem("access_token");
+      const user = localStorage.getItem("user");
+      if (token && user) {
+        setIsAuthenticated(true);
+        setCurrentUser(JSON.parse(user));
+      } else {
+        setIsAuthenticated(false);
+        setCurrentUser(null);
       }
     };
 
-    checkBackendConnection();
+    checkAuth();
+
+    // Listen for auth changes from footer
+    const handleAuthChange = () => {
+      checkAuth();
+    };
+
+    window.addEventListener("authChange", handleAuthChange);
+    window.addEventListener("storage", handleAuthChange);
+
+    return () => {
+      window.removeEventListener("authChange", handleAuthChange);
+      window.removeEventListener("storage", handleAuthChange);
+    };
   }, []);
 
-  const loadPackagesFromBackend = (backendPackages) => {
+  // Fetch packages from backend on mount
+  const fetchPackagesFromBackend = async () => {
+    setBackendLoading(true);
     try {
-      // Only process packages that start with "Tsavo East"
-      const validBackendPackages = backendPackages.filter((pkg) =>
-        startsWithTsavoEast(pkg.name),
-      );
+      const response = await fetch("http://localhost:5000/api/safari-cards");
+      if (response.ok) {
+        const packagesData = await response.json();
+        if (packagesData.success && packagesData.data) {
+          // Filter only packages that start with "Tsavo East"
+          const tsavoEastPackages = packagesData.data.filter((pkg) =>
+            startsWithTsavoEast(pkg.name),
+          );
 
-      const convertedPackages = validBackendPackages.map((pkg) => {
-        const hasPrices = pkg.prices && pkg.prices.length > 0;
-        const basePrice = hasPrices ? pkg.prices[0] : null;
+          const convertedPackages = tsavoEastPackages.map((pkg) => {
+            const hasPrices = pkg.prices && pkg.prices.length > 0;
+            const basePrice = hasPrices ? pkg.prices[0] : null;
 
-        return {
-          id: `backend_${pkg.id}`,
-          backendId: pkg.id,
-          name: pkg.name,
-          description: pkg.description || "",
-          duration: `${pkg.total_days || 3}-${(pkg.total_days || 3) + 2} days recommended`,
-          highlights: pkg.highlights || [],
-          fullItinerary: pkg.description || "",
-          priceOptions:
-            hasPrices && basePrice.prices
-              ? [
-                  {
-                    people: 2,
-                    price: basePrice.prices.pax_2_price || 320,
-                    currency: "euro",
-                  },
-                  {
-                    people: 4,
-                    price: basePrice.prices.pax_4_price || 240,
-                    currency: "euro",
-                  },
-                  {
-                    people: 6,
-                    price: basePrice.prices.pax_6_price || 200,
-                    currency: "euro",
-                  },
-                  {
-                    people: 8,
-                    price: basePrice.prices.pax_8_price || 180,
-                    currency: "euro",
-                  },
-                ]
-              : defaultSafariRoutes[0].priceOptions,
-          priceRange: {
-            min:
-              hasPrices && basePrice.prices
-                ? Math.min(
-                    basePrice.prices.pax_2_price || 320,
-                    basePrice.prices.pax_4_price || 240,
-                    basePrice.prices.pax_6_price || 200,
-                    basePrice.prices.pax_8_price || 180,
-                  )
-                : 100,
-            max:
-              hasPrices && basePrice.prices
-                ? Math.max(
-                    basePrice.prices.pax_2_price || 320,
-                    basePrice.prices.pax_4_price || 240,
-                    basePrice.prices.pax_6_price || 200,
-                    basePrice.prices.pax_8_price || 180,
-                  )
-                : 500,
-          },
-        };
-      });
+            return {
+              id: pkg.id,
+              backendId: pkg.id,
+              name: pkg.name,
+              description: pkg.description || "",
+              duration: `${pkg.total_days || 3}-${(pkg.total_days || 3) + 2} days recommended`,
+              highlights: pkg.highlights || [],
+              fullItinerary: pkg.description || "",
+              priceOptions:
+                hasPrices && basePrice.prices
+                  ? [
+                      {
+                        people: 2,
+                        price: basePrice.prices.pax_2_price || 320,
+                        currency: "euro",
+                      },
+                      {
+                        people: 4,
+                        price: basePrice.prices.pax_4_price || 240,
+                        currency: "euro",
+                      },
+                      {
+                        people: 6,
+                        price: basePrice.prices.pax_6_price || 200,
+                        currency: "euro",
+                      },
+                      {
+                        people: 8,
+                        price: basePrice.prices.pax_8_price || 180,
+                        currency: "euro",
+                      },
+                    ]
+                  : [
+                      { people: 2, price: 320, currency: "euro" },
+                      { people: 4, price: 240, currency: "euro" },
+                      { people: 6, price: 200, currency: "euro" },
+                      { people: 8, price: 180, currency: "euro" },
+                    ],
+              priceRange: {
+                min:
+                  hasPrices && basePrice.prices
+                    ? Math.min(
+                        basePrice.prices.pax_2_price || 320,
+                        basePrice.prices.pax_4_price || 240,
+                        basePrice.prices.pax_6_price || 200,
+                        basePrice.prices.pax_8_price || 180,
+                      )
+                    : 100,
+                max:
+                  hasPrices && basePrice.prices
+                    ? Math.max(
+                        basePrice.prices.pax_2_price || 320,
+                        basePrice.prices.pax_4_price || 240,
+                        basePrice.prices.pax_6_price || 200,
+                        basePrice.prices.pax_8_price || 180,
+                      )
+                    : 500,
+              },
+            };
+          });
 
-      const localPackages = safariRoutes.filter(
-        (pkg) => !pkg.backendId && startsWithTsavoEast(pkg.name),
-      );
-      convertedPackages.forEach((backendPkg) => {
-        const exists = localPackages.some(
-          (localPkg) =>
-            localPkg.backendId === backendPkg.backendId ||
-            localPkg.name === backendPkg.name,
-        );
-        if (!exists) {
-          localPackages.push(backendPkg);
+          setSafariRoutes(convertedPackages);
+          setBackendStatus({
+            connected: true,
+            packageCount: convertedPackages.length,
+          });
+        } else {
+          setSafariRoutes([]);
+          setBackendStatus({
+            connected: true,
+            packageCount: 0,
+          });
         }
-      });
-
-      setSafariRoutes(localPackages);
-      saveSafariRoutesToStorage(localPackages);
+      } else {
+        throw new Error("Failed to fetch packages");
+      }
     } catch (error) {
-      console.error("Error loading packages from backend:", error);
+      console.error("Error fetching from backend:", error);
+      setBackendStatus({
+        connected: false,
+        packageCount: 0,
+      });
+      setSafariRoutes([]);
+      // Only show error to admins
+      if (isAuthenticated) {
+        Swal.fire({
+          title: "Backend Connection Failed",
+          text: "Could not connect to the database. Please ensure the backend server is running on port 5000.",
+          icon: "error",
+          confirmButtonColor: "#f97316",
+        });
+      }
+    } finally {
+      setBackendLoading(false);
     }
   };
 
+  // Filter packages to only show those starting with "Tsavo East"
+  useEffect(() => {
+    const filtered = safariRoutes.filter((route) =>
+      startsWithTsavoEast(route.name),
+    );
+    setFilteredSafariRoutes(filtered);
+    setShowAllPackages(false);
+  }, [safariRoutes]);
+
+  // Check backend connection on mount
+  useEffect(() => {
+    fetchPackagesFromBackend();
+  }, []);
+
+  // Check for existing lodge selection from localStorage (only for booking data)
   useEffect(() => {
     const checkExistingSelection = () => {
       try {
@@ -669,7 +589,10 @@ const TsavoEast = () => {
   const handleEditPackage = (route) => {
     setEditingRoute(route);
     setAdminForm({
-      routeName: route.name.replace("Tsavo East → ", "").trim(),
+      routeName: route.name
+        .replace("Tsavo East → ", "")
+        .replace("Tsavo East ", "")
+        .trim(),
       description: route.description,
       duration: route.duration,
       highlights: route.highlights.join(", "),
@@ -687,6 +610,17 @@ const TsavoEast = () => {
       ? adminForm.routeName
       : `Tsavo East → ${adminForm.routeName}`;
 
+    // Validate that the package name starts with "Tsavo East"
+    if (!startsWithTsavoEast(routeName)) {
+      Swal.fire({
+        title: "Invalid Package Name",
+        text: "All packages on this page must start with 'Tsavo East'. Please ensure your package is for Tsavo East National Park.",
+        icon: "error",
+        confirmButtonColor: "#f97316",
+      });
+      return;
+    }
+
     const prices = adminForm.priceOptions.map((option) => option.price);
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
@@ -697,51 +631,84 @@ const TsavoEast = () => {
       .filter((h) => h.length > 0);
 
     const updatedRoute = {
-      ...editingRoute,
+      id: editingRoute.backendId || editingRoute.id,
       name: routeName,
       description: adminForm.description,
       duration: adminForm.duration,
       highlights: highlightsArray,
-      fullItinerary: adminForm.itinerary,
-      priceOptions: adminForm.priceOptions,
-      priceRange: { min: minPrice, max: maxPrice },
+      total_days: parseInt(adminForm.duration) || 3,
+      prices: [
+        {
+          people: 2,
+          prices: {
+            pax_2_price:
+              adminForm.priceOptions.find((o) => o.people === 2)?.price || 320,
+            pax_4_price:
+              adminForm.priceOptions.find((o) => o.people === 4)?.price || 240,
+            pax_6_price:
+              adminForm.priceOptions.find((o) => o.people === 6)?.price || 200,
+            pax_8_price:
+              adminForm.priceOptions.find((o) => o.people === 8)?.price || 180,
+          },
+        },
+      ],
     };
 
-    const updatedRoutes = safariRoutes.map((route) =>
-      route.id === editingRoute.id ? updatedRoute : route,
-    );
+    try {
+      setIsLoading(true);
 
-    setSafariRoutes(updatedRoutes);
-    saveSafariRoutesToStorage(updatedRoutes);
+      const response = await fetch(
+        `http://localhost:5000/api/safari-cards/${editingRoute.backendId || editingRoute.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          },
+          body: JSON.stringify(updatedRoute),
+        },
+      );
 
-    if (selectedRoute && selectedRoute.id === editingRoute.id) {
-      setSelectedRoute(updatedRoute);
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        Swal.fire({
+          title: "✅ Package Updated!",
+          html: `
+            <div class="text-left">
+              <p><strong>${updatedRoute.name}</strong> has been updated successfully in the database.</p>
+              <div class="mt-4 p-3 bg-gray-50 rounded">
+                <p class="text-sm"><strong>Price Range:</strong> €${minPrice} - €${maxPrice}</p>
+                <p class="text-sm"><strong>Duration:</strong> ${updatedRoute.duration}</p>
+              </div>
+            </div>
+          `,
+          icon: "success",
+          confirmButtonColor: "#f97316",
+        });
+
+        // Refresh packages from backend
+        await fetchPackagesFromBackend();
+      } else {
+        throw new Error(result.error || "Failed to update package");
+      }
+    } catch (error) {
+      console.error("Error updating package:", error);
+      Swal.fire({
+        title: "Update Failed",
+        text: "Could not update the package in the database. Please try again.",
+        icon: "error",
+        confirmButtonColor: "#f97316",
+      });
+    } finally {
+      setIsLoading(false);
+      setShowEditModal(false);
+      setEditingRoute(null);
     }
-
-    Swal.fire({
-      title: "✅ Package Updated!",
-      html: `
-        <div class="text-left">
-          <p><strong>${updatedRoute.name}</strong> has been updated successfully.</p>
-          <div class="mt-4 p-3 bg-gray-50 rounded">
-            <p class="text-sm"><strong>Price Range:</strong> €${minPrice} - €${maxPrice}</p>
-            <p class="text-sm"><strong>Duration:</strong> ${updatedRoute.duration}</p>
-          </div>
-        </div>
-      `,
-      icon: "success",
-      confirmButtonColor: "#f97316",
-    });
-
-    setShowEditModal(false);
-    setEditingRoute(null);
   };
 
   const savePackageToBackend = async (packageData) => {
     try {
-      setIsLoading(true);
-
-      // Ensure the name starts with "Tsavo East"
       const routeName = startsWithTsavoEast(packageData.name)
         ? packageData.name
         : `Tsavo East → ${packageData.name}`;
@@ -751,17 +718,34 @@ const TsavoEast = () => {
         description: packageData.description,
         duration: packageData.duration || "3-5 days recommended",
         itinerary: packageData.fullItinerary || "",
-        priceOptions: packageData.priceOptions.map((option) => ({
-          people: option.people,
-          price: option.price,
-          currency: option.currency || "euro",
-        })),
+        total_days: parseInt(packageData.duration) || 3,
+        highlights: packageData.highlights,
+        prices: [
+          {
+            people: 2,
+            prices: {
+              pax_2_price:
+                packageData.priceOptions.find((o) => o.people === 2)?.price ||
+                320,
+              pax_4_price:
+                packageData.priceOptions.find((o) => o.people === 4)?.price ||
+                240,
+              pax_6_price:
+                packageData.priceOptions.find((o) => o.people === 6)?.price ||
+                200,
+              pax_8_price:
+                packageData.priceOptions.find((o) => o.people === 8)?.price ||
+                180,
+            },
+          },
+        ],
       };
 
       const response = await fetch("http://localhost:5000/api/safari-cards", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
         },
         body: JSON.stringify(backendPackage),
       });
@@ -769,153 +753,13 @@ const TsavoEast = () => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        Swal.fire({
-          title: "✅ Success!",
-          text: "Safari package saved to database successfully",
-          icon: "success",
-          confirmButtonColor: "#f97316",
-        });
-
-        return {
-          success: true,
-          data: result,
-          backendId: result.package_id,
-        };
+        return { success: true, data: result, backendId: result.package_id };
       } else {
         throw new Error(result.error || "Failed to save package");
       }
     } catch (error) {
       console.error("Error saving to backend:", error);
-      Swal.fire({
-        title: "Backend Error",
-        text: "Could not save to database. Saved locally instead.",
-        icon: "warning",
-        confirmButtonColor: "#f97316",
-      });
       return { success: false, error: error.message };
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const syncWithBackend = async () => {
-    setBackendLoading(true);
-    Swal.fire({
-      title: "Syncing...",
-      text: "Please wait while we sync with the database",
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      },
-    });
-
-    try {
-      const response = await fetch("http://localhost:5000/api/safari-cards");
-      if (response.ok) {
-        const packagesData = await response.json();
-
-        if (packagesData.success) {
-          // STRICT FILTERING: Only packages that start with "Tsavo East"
-          const filteredPackages = packagesData.data.filter(
-            (pkg) => pkg.name && startsWithTsavoEast(pkg.name),
-          );
-
-          const backendPackages = filteredPackages.map((pkg) => {
-            const hasPrices = pkg.prices && pkg.prices.length > 0;
-            const basePrice = hasPrices ? pkg.prices[0] : null;
-
-            return {
-              id: `backend_${pkg.id}`,
-              backendId: pkg.id,
-              name: pkg.name,
-              description: pkg.description || "",
-              duration: `${pkg.total_days || 3}-${(pkg.total_days || 3) + 2} days recommended`,
-              highlights: pkg.highlights || [],
-              fullItinerary: pkg.description || "",
-              priceOptions:
-                hasPrices && basePrice.prices
-                  ? [
-                      {
-                        people: 2,
-                        price: basePrice.prices.pax_2_price || 320,
-                        currency: "euro",
-                      },
-                      {
-                        people: 4,
-                        price: basePrice.prices.pax_4_price || 240,
-                        currency: "euro",
-                      },
-                      {
-                        people: 6,
-                        price: basePrice.prices.pax_6_price || 200,
-                        currency: "euro",
-                      },
-                      {
-                        people: 8,
-                        price: basePrice.prices.pax_8_price || 180,
-                        currency: "euro",
-                      },
-                    ]
-                  : defaultSafariRoutes[0].priceOptions,
-              priceRange: {
-                min:
-                  hasPrices && basePrice.prices
-                    ? Math.min(
-                        basePrice.prices.pax_2_price || 320,
-                        basePrice.prices.pax_4_price || 240,
-                        basePrice.prices.pax_6_price || 200,
-                        basePrice.prices.pax_8_price || 180,
-                      )
-                    : 100,
-                max:
-                  hasPrices && basePrice.prices
-                    ? Math.max(
-                        basePrice.prices.pax_2_price || 320,
-                        basePrice.prices.pax_4_price || 240,
-                        basePrice.prices.pax_6_price || 200,
-                        basePrice.prices.pax_8_price || 180,
-                      )
-                    : 500,
-              },
-            };
-          });
-
-          const localPackages = safariRoutes.filter(
-            (pkg) => !pkg.backendId && startsWithTsavoEast(pkg.name),
-          );
-          const allPackages = [...localPackages, ...backendPackages];
-
-          // Remove duplicates by name
-          const uniquePackages = allPackages.filter(
-            (pkg, index, self) =>
-              index === self.findIndex((p) => p.name === pkg.name),
-          );
-
-          setSafariRoutes(uniquePackages);
-          saveSafariRoutesToStorage(uniquePackages);
-
-          setBackendStatus((prev) => ({
-            ...prev,
-            packageCount: backendPackages.length,
-          }));
-
-          Swal.fire({
-            title: "✅ Sync Complete!",
-            text: `Loaded ${backendPackages.length} Tsavo East packages from backend`,
-            icon: "success",
-            confirmButtonColor: "#f97316",
-          });
-        }
-      }
-    } catch (error) {
-      Swal.fire({
-        title: "Sync Failed",
-        text: "Could not sync with backend. Please check your connection.",
-        icon: "error",
-        confirmButtonColor: "#f97316",
-      });
-    } finally {
-      setBackendLoading(false);
     }
   };
 
@@ -1005,6 +849,17 @@ const TsavoEast = () => {
       ? adminForm.routeName
       : `Tsavo East → ${adminForm.routeName}`;
 
+    // Validate that the package name starts with "Tsavo East"
+    if (!startsWithTsavoEast(routeName)) {
+      Swal.fire({
+        title: "Invalid Package Name",
+        text: "All packages on this page must start with 'Tsavo East'. This page only accepts Tsavo East National Park safari packages.",
+        icon: "error",
+        confirmButtonColor: "#f97316",
+      });
+      return;
+    }
+
     const prices = adminForm.priceOptions.map((option) => option.price);
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
@@ -1015,7 +870,6 @@ const TsavoEast = () => {
       .filter((h) => h.length > 0);
 
     const newRoute = {
-      id: Date.now(),
       name: routeName,
       description: adminForm.description,
       duration: adminForm.duration,
@@ -1025,83 +879,110 @@ const TsavoEast = () => {
       priceRange: { min: minPrice, max: maxPrice },
     };
 
-    let backendResult = null;
-    if (backendStatus.connected) {
-      backendResult = await savePackageToBackend(newRoute);
+    const backendResult = await savePackageToBackend(newRoute);
 
-      if (backendResult.success && backendResult.backendId) {
-        newRoute.backendId = backendResult.backendId;
-        newRoute.id = `backend_${backendResult.backendId}`;
-      }
-    }
-
-    const updatedRoutes = [...safariRoutes, newRoute];
-    setSafariRoutes(updatedRoutes);
-    saveSafariRoutesToStorage(updatedRoutes);
-
-    Swal.fire({
-      title: "✅ Package Created!",
-      html: `
-        <div class="text-left">
-          <p><strong>${newRoute.name}</strong> has been created successfully.</p>
-          <div class="mt-4 p-3 bg-gray-50 rounded">
-            <p class="text-sm"><strong>Status:</strong> ${backendStatus.connected && backendResult?.success ? "Saved to Database ✓" : "Saved Locally Only"}</p>
-            <p class="text-sm"><strong>Price Range:</strong> €${minPrice} - €${maxPrice}</p>
-            <p class="text-sm"><strong>Duration:</strong> ${newRoute.duration}</p>
+    if (backendResult.success) {
+      Swal.fire({
+        title: "✅ Package Created!",
+        html: `
+          <div class="text-left">
+            <p><strong>${newRoute.name}</strong> has been created successfully in the database.</p>
+            <div class="mt-4 p-3 bg-gray-50 rounded">
+              <p class="text-sm"><strong>Price Range:</strong> €${minPrice} - €${maxPrice}</p>
+              <p class="text-sm"><strong>Duration:</strong> ${newRoute.duration}</p>
+            </div>
           </div>
-        </div>
-      `,
-      icon: "success",
-      confirmButtonColor: "#f97316",
-    });
+        `,
+        icon: "success",
+        confirmButtonColor: "#f97316",
+      });
 
-    setAdminForm({
-      routeName: "",
-      description: "",
-      duration: "3-5 days recommended",
-      highlights: "",
-      itinerary: "",
-      priceOptions: [
-        { people: 2, price: 320, currency: "euro" },
-        { people: 3, price: 280, currency: "euro" },
-        { people: 4, price: 240, currency: "euro" },
-        { people: 5, price: 220, currency: "euro" },
-        { people: 6, price: 200, currency: "euro" },
-        { people: 7, price: 190, currency: "euro" },
-        { people: 8, price: 180, currency: "euro" },
-      ],
-    });
-    setShowAdminForm(false);
+      // Refresh packages from backend
+      await fetchPackagesFromBackend();
+
+      setAdminForm({
+        routeName: "",
+        description: "",
+        duration: "3-5 days recommended",
+        highlights: "",
+        itinerary: "",
+        priceOptions: [
+          { people: 2, price: 320, currency: "euro" },
+          { people: 3, price: 280, currency: "euro" },
+          { people: 4, price: 240, currency: "euro" },
+          { people: 5, price: 220, currency: "euro" },
+          { people: 6, price: 200, currency: "euro" },
+          { people: 7, price: 190, currency: "euro" },
+          { people: 8, price: 180, currency: "euro" },
+        ],
+      });
+      setShowAdminForm(false);
+    } else {
+      Swal.fire({
+        title: "Creation Failed",
+        text: "Could not save the package to the database. Please try again.",
+        icon: "error",
+        confirmButtonColor: "#f97316",
+      });
+    }
   };
 
-  const handleDeletePackage = (routeId) => {
+  const handleDeletePackage = (routeId, backendId) => {
     Swal.fire({
       title: "Delete Safari Package?",
-      text: "Are you sure you want to permanently delete this safari package? This action cannot be undone.",
+      text: "Are you sure you want to permanently delete this safari package from the database? This action cannot be undone.",
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#f97316",
       cancelButtonColor: "#6b7280",
       confirmButtonText: "Yes, delete permanently!",
       cancelButtonText: "Cancel",
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed) {
-        const updatedRoutes = safariRoutes.filter(
-          (route) => route.id !== routeId,
-        );
-        setSafariRoutes(updatedRoutes);
-        saveSafariRoutesToStorage(updatedRoutes);
+        try {
+          const idToDelete = backendId || routeId;
+          const response = await fetch(
+            `http://localhost:5000/api/safari-cards/${idToDelete}`,
+            {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+              },
+            },
+          );
 
-        if (selectedRoute && selectedRoute.id === routeId) {
-          setSelectedRoute(null);
+          const resultData = await response.json();
+
+          if (response.ok && resultData.success) {
+            Swal.fire({
+              title: "Deleted Permanently!",
+              text: "The safari package has been permanently deleted from the database.",
+              icon: "success",
+              confirmButtonColor: "#f97316",
+            });
+
+            if (
+              selectedRoute &&
+              (selectedRoute.backendId === idToDelete ||
+                selectedRoute.id === idToDelete)
+            ) {
+              setSelectedRoute(null);
+            }
+
+            // Refresh packages from backend
+            await fetchPackagesFromBackend();
+          } else {
+            throw new Error(resultData.error || "Failed to delete package");
+          }
+        } catch (error) {
+          console.error("Error deleting package:", error);
+          Swal.fire({
+            title: "Delete Failed",
+            text: "Could not delete the package from the database. Please try again.",
+            icon: "error",
+            confirmButtonColor: "#f97316",
+          });
         }
-
-        Swal.fire({
-          title: "Deleted Permanently!",
-          text: "The safari package has been permanently deleted and removed from storage.",
-          icon: "success",
-          confirmButtonColor: "#f97316",
-        });
       }
     });
   };
@@ -1962,97 +1843,101 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                     : "Select a lodge first to view available packages"}
                 </p>
                 <p className="text-sm text-orange-600 mt-1">
-                  📍 Only showing packages starting with "Tsavo East"
+                  📍 Showing {filteredSafariRoutes.length} packages starting
+                  with "Tsavo East"
                 </p>
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
-                {backendStatus.connected && (
+                <button
+                  onClick={fetchPackagesFromBackend}
+                  disabled={backendLoading}
+                  className={`${backendLoading ? "bg-gray-400" : "bg-orange-600 hover:bg-orange-700"} text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    {backendLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-4 h-4 sm:w-5 sm:h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                          />
+                        </svg>
+                        Refresh
+                      </>
+                    )}
+                  </div>
+                </button>
+                {isAuthenticated && (
                   <button
-                    onClick={syncWithBackend}
-                    disabled={backendLoading}
-                    className={`${backendLoading ? "bg-gray-400" : "bg-orange-600 hover:bg-orange-700"} text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none`}
+                    onClick={() => setShowAdminForm(true)}
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none"
                   >
                     <div className="flex items-center justify-center gap-2">
-                      {backendLoading ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Syncing...
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            className="w-4 h-4 sm:w-5 sm:h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                            />
-                          </svg>
-                          Sync
-                        </>
-                      )}
+                      <svg
+                        className="w-4 h-4 sm:w-5 sm:h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                        />
+                      </svg>
+                      Add New Package
                     </div>
                   </button>
                 )}
-                <button
-                  onClick={() => setShowAdminForm(true)}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none"
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <svg
-                      className="w-4 h-4 sm:w-5 sm:h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                      />
-                    </svg>
-                    Add New Package
-                  </div>
-                </button>
               </div>
             </div>
 
-            <div className="mb-6 bg-orange-50 border border-orange-200 rounded-lg p-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-3 h-3 rounded-full ${backendStatus.connected ? "bg-green-500" : "bg-red-500"}`}
-                  ></div>
-                  <div>
-                    <p className="text-sm text-orange-800 font-medium">
-                      {backendStatus.connected
-                        ? "Backend Database Connected"
-                        : "Local Storage Only (Backend Offline)"}
-                    </p>
-                    <p className="text-xs text-orange-600">
-                      {backendStatus.connected
-                        ? `${backendStatus.packageCount} Tsavo East packages in database, ${safariRoutes.length} locally`
-                        : "All data stored locally in browser"}
-                    </p>
+            {/* Admin-only backend status info */}
+            {isAuthenticated && (
+              <div className="mb-6 bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-3 h-3 rounded-full ${backendStatus.connected ? "bg-green-500" : "bg-red-500"}`}
+                    ></div>
+                    <div>
+                      <p className="text-sm text-orange-800 font-medium">
+                        {backendStatus.connected
+                          ? "Backend Database Connected"
+                          : "Backend Offline - Cannot load packages"}
+                      </p>
+                      <p className="text-xs text-orange-600">
+                        {backendStatus.connected
+                          ? `${backendStatus.packageCount} Tsavo East packages in database, ${filteredSafariRoutes.length} matching filter`
+                          : "Please ensure backend server is running on port 5000"}
+                      </p>
+                    </div>
                   </div>
+                  {backendStatus.connected ? (
+                    <div className="text-xs text-green-700 bg-green-100 px-3 py-1 rounded-full">
+                      Database Active
+                    </div>
+                  ) : (
+                    <div className="text-xs text-red-700 bg-red-100 px-3 py-1 rounded-full">
+                      Offline Mode
+                    </div>
+                  )}
                 </div>
-                {backendStatus.connected ? (
-                  <div className="text-xs text-green-700 bg-green-100 px-3 py-1 rounded-full">
-                    Database Active
-                  </div>
-                ) : (
-                  <div className="text-xs text-red-700 bg-red-100 px-3 py-1 rounded-full">
-                    Offline Mode
-                  </div>
-                )}
               </div>
-            </div>
+            )}
 
             {!selectedLodge ? (
               <div className="bg-gray-50 border border-gray-300 rounded-xl p-8 text-center">
@@ -2083,7 +1968,19 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   Select Your Lodge Now
                 </button>
               </div>
-            ) : safariRoutes.length === 0 ? (
+            ) : backendLoading ? (
+              <div className="text-center py-12 bg-white rounded-xl shadow-lg border border-orange-200">
+                <div className="flex justify-center mb-4">
+                  <div className="w-12 h-12 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                  Loading Packages...
+                </h3>
+                <p className="text-gray-600">
+                  Please wait while we fetch packages from the database.
+                </p>
+              </div>
+            ) : filteredSafariRoutes.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-xl shadow-lg border border-orange-200">
                 <svg
                   className="w-16 h-16 text-gray-400 mx-auto mb-4"
@@ -2099,25 +1996,70 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   />
                 </svg>
                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  No Safari Packages Available
+                  No Tsavo East Packages Available
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  Click "Add New Package" to create your first Tsavo East safari
-                  package.
+                  {backendStatus.connected
+                    ? `No packages starting with "Tsavo East" were found in the database. ${
+                        isAuthenticated
+                          ? 'Click "Add New Package" to create your first Tsavo East safari package.'
+                          : "Please sign in as admin to add packages."
+                      }`
+                    : "Cannot connect to the database. Please ensure the backend server is running on port 5000."}
                 </p>
-                <button
-                  onClick={() => setShowAdminForm(true)}
-                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
-                >
-                  Create Your First Package
-                </button>
+                {isAuthenticated ? (
+                  <button
+                    onClick={() => setShowAdminForm(true)}
+                    className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Create Tsavo East Package
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      const event = new CustomEvent("authChange");
+                      window.dispatchEvent(event);
+                    }}
+                    className="bg-[#1a2a4f] hover:bg-[#0f1a33] text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Sign In as Admin
+                  </button>
+                )}
               </div>
             ) : (
               <>
+                {/* Info banner about filtering - only visible to admins */}
+                {isAuthenticated &&
+                  safariRoutes.length > filteredSafariRoutes.length && (
+                    <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <span>
+                          Showing {filteredSafariRoutes.length} of{" "}
+                          {safariRoutes.length} total packages from database.
+                          Only packages starting with "Tsavo East" are
+                          displayed.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {(showAllPackages
-                    ? safariRoutes
-                    : safariRoutes.slice(0, 6)
+                    ? filteredSafariRoutes
+                    : filteredSafariRoutes.slice(0, 6)
                   ).map((route) => {
                     const isExpanded = expandedCards[route.id] || false;
                     const shouldTruncate =
@@ -2139,16 +2081,17 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                         key={route.id}
                         className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 border border-orange-200 relative group"
                       >
-                        <div className="absolute top-2 left-2 z-10 flex gap-1">
-                          {route.backendId && (
+                        {/* Admin-only badges */}
+                        {isAuthenticated && (
+                          <div className="absolute top-2 left-2 z-10 flex gap-1">
                             <span className="bg-orange-600 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
                               ✓ DB
                             </span>
-                          )}
-                          <span className="bg-purple-600 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
-                            Local
-                          </span>
-                        </div>
+                            <span className="bg-green-700 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
+                              Tsavo East Start
+                            </span>
+                          </div>
+                        )}
 
                         <div className="absolute top-2 right-2 z-10">
                           <span className="bg-orange-600 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
@@ -2156,46 +2099,51 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                           </span>
                         </div>
 
-                        <div className="absolute top-12 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          <button
-                            onClick={() => handleEditPackage(route)}
-                            className="bg-purple-600 hover:bg-purple-700 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
-                            title="Edit Package"
-                          >
-                            <svg
-                              className="w-3 h-3 md:w-4 md:h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                        {/* Admin-only edit/delete buttons */}
+                        {isAuthenticated && (
+                          <div className="absolute top-12 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <button
+                              onClick={() => handleEditPackage(route)}
+                              className="bg-purple-600 hover:bg-purple-700 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
+                              title="Edit Package"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeletePackage(route.id)}
-                            className="bg-red-500 hover:bg-red-600 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
-                            title="Delete Package"
-                          >
-                            <svg
-                              className="w-3 h-3 md:w-4 md:h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                              <svg
+                                className="w-3 h-3 md:w-4 md:h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDeletePackage(route.id, route.backendId)
+                              }
+                              className="bg-red-500 hover:bg-red-600 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
+                              title="Delete Package"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
-                        </div>
+                              <svg
+                                className="w-3 h-3 md:w-4 md:h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
 
                         <div className="h-24 md:h-32 bg-gradient-to-r from-orange-600 to-orange-700 flex items-center justify-center">
                           <div className="text-white text-center p-2">
@@ -2347,7 +2295,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   })}
                 </div>
 
-                {safariRoutes.length > 6 && (
+                {filteredSafariRoutes.length > 6 && (
                   <div className="mt-8 text-center">
                     <button
                       onClick={() => setShowAllPackages(!showAllPackages)}
@@ -2367,8 +2315,8 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                         />
                       </svg>
                       {showAllPackages
-                        ? `Show Less Packages (${safariRoutes.length - 6} hidden)`
-                        : `Show More Packages (${safariRoutes.length - 6} more)`}
+                        ? `Show Less Packages (${filteredSafariRoutes.length - 6} hidden)`
+                        : `Show More Packages (${filteredSafariRoutes.length - 6} more)`}
                     </button>
                   </div>
                 )}
@@ -2581,8 +2529,872 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
         </div>
       </div>
 
-      {/* Rest of the modals remain exactly the same */}
-      {/* ... (Attraction Modal, Admin Form Modal, Edit Modal, Price Modal, Lodge Modal, Booking Modal, Gallery Modal) ... */}
+      {/* Attraction Details Modal */}
+      {showAttractionModal && selectedAttraction && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50"
+          onClick={handleBackdropClick}
+        >
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto animate-fadeIn">
+            <div className="relative">
+              <div className="relative h-64 md:h-80 overflow-hidden rounded-t-2xl">
+                <img
+                  src={selectedAttraction.image}
+                  alt={selectedAttraction.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) =>
+                    handleImageError(e, selectedAttraction.fallback)
+                  }
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"></div>
+                <button
+                  onClick={() => setShowAttractionModal(false)}
+                  className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-all duration-300 z-10"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+                <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                  <h2 className="text-2xl md:text-3xl font-bold mb-2">
+                    {selectedAttraction.name}
+                  </h2>
+                  <div className="flex flex-wrap gap-3">
+                    <span className="bg-orange-600/80 backdrop-blur-sm text-white text-sm px-3 py-1 rounded-full">
+                      ⭐ {selectedAttraction.highlight}
+                    </span>
+                    <span className="bg-orange-700/80 backdrop-blur-sm text-white text-sm px-3 py-1 rounded-full">
+                      📅 Best: {selectedAttraction.bestTime}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6">
+                <div className="mb-6">
+                  <h3 className="text-xl font-bold text-gray-800 mb-3 flex items-center gap-2">
+                    <svg
+                      className="w-6 h-6 text-orange-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    About This Attraction
+                  </h3>
+                  <p className="text-gray-700 leading-relaxed">
+                    {selectedAttraction.details ||
+                      selectedAttraction.description}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-orange-50 rounded-lg p-4 text-center">
+                    <svg
+                      className="w-8 h-8 text-orange-600 mx-auto mb-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                    <p className="text-sm text-gray-600">Best Time</p>
+                    <p className="font-semibold text-orange-600">
+                      {selectedAttraction.bestTime}
+                    </p>
+                  </div>
+                  <div className="bg-orange-50 rounded-lg p-4 text-center">
+                    <svg
+                      className="w-8 h-8 text-orange-600 mx-auto mb-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                      />
+                    </svg>
+                    <p className="text-sm text-gray-600">Highlight</p>
+                    <p className="font-semibold text-orange-600">
+                      {selectedAttraction.highlight}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowAttractionModal(false)}
+                  className="w-full bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white py-3 rounded-xl font-semibold transition-all duration-300"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        .collapsible-content {
+          max-height: 0;
+          overflow: hidden;
+          transition: max-height 0.5s ease-out;
+        }
+        .collapsible-content.open {
+          max-height: 5000px;
+          transition: max-height 0.7s ease-in;
+        }
+        .line-clamp-1 {
+          display: -webkit-box;
+          -webkit-line-clamp: 1;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .line-clamp-2 {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.2s ease-out;
+        }
+      `}</style>
+
+      {/* CREATE PACKAGE ADMIN FORM MODAL */}
+      {showAdminForm && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
+          onClick={handleBackdropClick}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">
+                Create New Safari Package
+              </h2>
+              <button
+                onClick={() => setShowAdminForm(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleAdminSubmit} className="p-6 space-y-6">
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Package Name *
+                </label>
+                <input
+                  type="text"
+                  name="routeName"
+                  value={adminForm.routeName}
+                  onChange={handleAdminFormChange}
+                  placeholder="e.g., Tsavo East → Tsavo West → Amboseli"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                  required
+                />
+                <p className="text-xs text-orange-600 mt-1 font-semibold">
+                  🐘 "Tsavo East → " will be added automatically if not included
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Description *
+                </label>
+                <textarea
+                  name="description"
+                  value={adminForm.description}
+                  onChange={handleAdminFormChange}
+                  rows="3"
+                  placeholder="Describe the safari experience, key features, and what makes it special..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                  required
+                ></textarea>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Duration
+                </label>
+                <input
+                  type="text"
+                  name="duration"
+                  value={adminForm.duration}
+                  onChange={handleAdminFormChange}
+                  placeholder="e.g., 3-5 days recommended"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Highlights (comma separated)
+                </label>
+                <input
+                  type="text"
+                  name="highlights"
+                  value={adminForm.highlights}
+                  onChange={handleAdminFormChange}
+                  placeholder="e.g., Red Elephants, Lugard Falls, Yatta Plateau"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Full Itinerary
+                </label>
+                <textarea
+                  name="itinerary"
+                  value={adminForm.itinerary}
+                  onChange={handleAdminFormChange}
+                  rows="4"
+                  placeholder="Day by day itinerary details..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                ></textarea>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Price Options
+                </label>
+                {adminForm.priceOptions.map((option, index) => (
+                  <div key={index} className="flex gap-2 mb-2">
+                    <input
+                      type="number"
+                      placeholder="People"
+                      value={option.people}
+                      onChange={(e) =>
+                        handlePriceOptionChange(index, "people", e.target.value)
+                      }
+                      className="w-1/3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Price (€)"
+                      value={option.price}
+                      onChange={(e) =>
+                        handlePriceOptionChange(index, "price", e.target.value)
+                      }
+                      className="w-1/3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePriceOption(index)}
+                      className="bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addPriceOption}
+                  className="mt-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
+                >
+                  + Add Price Option
+                </button>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 bg-gradient-to-r from-orange-600 to-orange-700 text-white py-3 rounded-xl font-semibold hover:from-orange-700 hover:to-orange-800 transition-all duration-300"
+                >
+                  Create Package
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAdminForm(false)}
+                  className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-400 transition-all duration-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT PACKAGE MODAL */}
+      {showEditModal && editingRoute && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
+          onClick={handleBackdropClick}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">
+                Edit Safari Package
+              </h2>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdatePackage} className="p-6 space-y-6">
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Package Name *
+                </label>
+                <input
+                  type="text"
+                  name="routeName"
+                  value={adminForm.routeName}
+                  onChange={handleAdminFormChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Description *
+                </label>
+                <textarea
+                  name="description"
+                  value={adminForm.description}
+                  onChange={handleAdminFormChange}
+                  rows="3"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                  required
+                ></textarea>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Duration
+                </label>
+                <input
+                  type="text"
+                  name="duration"
+                  value={adminForm.duration}
+                  onChange={handleAdminFormChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Highlights (comma separated)
+                </label>
+                <input
+                  type="text"
+                  name="highlights"
+                  value={adminForm.highlights}
+                  onChange={handleAdminFormChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Full Itinerary
+                </label>
+                <textarea
+                  name="itinerary"
+                  value={adminForm.itinerary}
+                  onChange={handleAdminFormChange}
+                  rows="4"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                ></textarea>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Price Options
+                </label>
+                {adminForm.priceOptions.map((option, index) => (
+                  <div key={index} className="flex gap-2 mb-2">
+                    <input
+                      type="number"
+                      placeholder="People"
+                      value={option.people}
+                      onChange={(e) =>
+                        handlePriceOptionChange(index, "people", e.target.value)
+                      }
+                      className="w-1/3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Price (€)"
+                      value={option.price}
+                      onChange={(e) =>
+                        handlePriceOptionChange(index, "price", e.target.value)
+                      }
+                      className="w-1/3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePriceOption(index)}
+                      className="bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addPriceOption}
+                  className="mt-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
+                >
+                  + Add Price Option
+                </button>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 bg-gradient-to-r from-orange-600 to-orange-700 text-white py-3 rounded-xl font-semibold hover:from-orange-700 hover:to-orange-800 transition-all duration-300"
+                >
+                  Update Package
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-400 transition-all duration-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* PRICE SELECTION MODAL */}
+      {showPriceModal && selectedRouteForPricing && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50"
+          onClick={handleBackdropClick}
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full animate-fadeIn">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                Select Travelers & Price
+              </h2>
+              <p className="text-gray-600 mb-6">
+                Choose the number of travelers for{" "}
+                {selectedRouteForPricing.name}
+              </p>
+
+              <div className="space-y-3 mb-6">
+                {selectedRouteForPricing.priceOptions &&
+                selectedRouteForPricing.priceOptions.length > 0 ? (
+                  selectedRouteForPricing.priceOptions.map((option) => (
+                    <button
+                      key={option.people}
+                      onClick={() =>
+                        handleFinalPriceSelect(option.people, option.price)
+                      }
+                      className="w-full flex justify-between items-center p-4 border border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-all duration-300"
+                    >
+                      <span className="font-semibold text-gray-800">
+                        {option.people}{" "}
+                        {option.people === 1 ? "Traveler" : "Travelers"}
+                      </span>
+                      <span className="text-orange-600 font-bold text-xl">
+                        €{option.price}
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    No price options available for this package.
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() => setShowPriceModal(false)}
+                className="w-full bg-gray-300 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-400 transition-all duration-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LODGE SELECTION MODAL */}
+      {showLodgeModal && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
+          onClick={handleBackdropClick}
+        >
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">
+                Select Your Tsavo East Lodge
+              </h2>
+              <button
+                onClick={() => setShowLodgeModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {tsavoEastLodges.map((lodge) => (
+                  <div
+                    key={lodge.name}
+                    className="border border-gray-200 rounded-xl overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer"
+                    onClick={() => handleLodgeSelection(lodge)}
+                  >
+                    <img
+                      src={lodge.image}
+                      alt={lodge.name}
+                      className="w-full h-48 object-cover"
+                      onError={(e) => handleImageError(e, lodge.fallbackImage)}
+                    />
+                    <div className="p-4">
+                      <h3 className="font-bold text-lg text-gray-800 mb-1">
+                        {lodge.name}
+                      </h3>
+                      <p className="text-gray-600 text-sm mb-2">
+                        {lodge.description.substring(0, 100)}...
+                      </p>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {lodge.features.map((feature, idx) => (
+                          <span
+                            key={idx}
+                            className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded"
+                          >
+                            {feature}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-orange-600 font-bold">
+                          {lodge.priceRange}
+                        </span>
+                        <button className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-orange-700 transition-colors">
+                          Select This Lodge
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BOOKING MODAL */}
+      {showBookingModal && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
+          onClick={handleBackdropClick}
+        >
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">
+                Complete Your Booking
+              </h2>
+              <button
+                onClick={() => setShowBookingModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-2">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="fullName"
+                    value={bookingForm.fullName}
+                    onChange={handleFormChange}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-2">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={bookingForm.email}
+                    onChange={handleFormChange}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-2">
+                    Phone Number *
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={bookingForm.phone}
+                    onChange={handleFormChange}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-2">
+                    Preferred Start Date
+                  </label>
+                  <input
+                    type="date"
+                    name="startDate"
+                    value={bookingForm.startDate}
+                    onChange={handleFormChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Additional Message / Special Requests
+                </label>
+                <textarea
+                  name="message"
+                  value={bookingForm.message}
+                  onChange={handleFormChange}
+                  rows="3"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                  placeholder="Any special requirements, photography interests, questions about Tsavo East..."
+                ></textarea>
+              </div>
+
+              <div className="bg-orange-50 p-4 rounded-lg">
+                <h3 className="font-bold text-gray-800 mb-2">
+                  Booking Summary
+                </h3>
+                <p className="text-sm text-gray-600">
+                  <strong>Selected Lodge:</strong> {selectedLodge?.name}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>Selected Route:</strong> {selectedRoute?.name}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>Travelers:</strong> {bookingForm.travelers} pax
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>Estimated Total:</strong> €
+                  {calculatePrice(bookingForm.travelers, selectedRoute)}
+                </p>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-1 bg-gradient-to-r from-orange-600 to-orange-700 text-white py-3 rounded-xl font-semibold hover:from-orange-700 hover:to-orange-800 transition-all duration-300 disabled:opacity-50"
+                >
+                  {isLoading ? "Processing..." : "Confirm Booking"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBookingModal(false)}
+                  className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-400 transition-all duration-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* GALLERY MODAL */}
+      {showGalleryModal && (
+        <div
+          className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-50"
+          onClick={handleBackdropClick}
+        >
+          <div className="relative w-full max-w-5xl mx-4">
+            <button
+              onClick={() => setShowGalleryModal(false)}
+              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+            >
+              <svg
+                className="w-8 h-8"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+
+            <div className="relative">
+              <img
+                src={galleryImages[activeGalleryImage].src}
+                alt={galleryImages[activeGalleryImage].title}
+                className="w-full h-auto max-h-[70vh] object-contain rounded-lg"
+                onError={(e) =>
+                  handleImageError(
+                    e,
+                    galleryImages[activeGalleryImage].fallback,
+                  )
+                }
+              />
+
+              <button
+                onClick={prevGalleryImage}
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all duration-300"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </button>
+
+              <button
+                onClick={nextGalleryImage}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all duration-300"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mt-4 text-center text-white">
+              <h3 className="text-xl font-bold">
+                {galleryImages[activeGalleryImage].title}
+              </h3>
+              <p className="text-gray-300">
+                {galleryImages[activeGalleryImage].description}
+              </p>
+              <p className="text-sm text-gray-400 mt-2">
+                {activeGalleryImage + 1} of {galleryImages.length}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

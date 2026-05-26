@@ -30,29 +30,14 @@ const Maasaimara = () => {
   // State for showing all packages (dropdown functionality)
   const [showAllPackages, setShowAllPackages] = useState(false);
 
-  const toggleCardExpand = (cardId) => {
-    setExpandedCards((prev) => ({
-      ...prev,
-      [cardId]: !prev[cardId],
-    }));
-  };
+  // State for filtered packages (only those starting with Maasai Mara)
+  const [filteredSafariRoutes, setFilteredSafariRoutes] = useState([]);
 
-  // Collapsible sections state
-  const [collapsedSections, setCollapsedSections] = useState({
-    parkInfo: false,
-    gallery: false,
-    attractions: false,
-    packages: false,
-    migration: false,
-  });
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
-  const toggleSection = (section) => {
-    setCollapsedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
-  };
-
+  // Backend loading state
   const [backendLoading, setBackendLoading] = useState(false);
   const [backendStatus, setBackendStatus] = useState({
     connected: false,
@@ -82,307 +67,174 @@ const Maasaimara = () => {
     ],
   });
 
-  const defaultSafariRoutes = [
-    {
-      id: 1,
-      name: "Maasai Mara → Lake Nakuru → Nairobi",
-      description:
-        "Classic safari combining the Mara's big cats with Lake Nakuru's flamingos and rhinos. This is a longer description to test the show more functionality on the card.",
-      duration: "5-7 days recommended",
-      highlights: ["Great Migration", "Big Cats", "Flamingo Lake"],
-      fullItinerary:
-        "Day 1: Arrival at Maasai Mara National Reserve, afternoon game drive. Day 2: Full day game drive in Maasai Mara searching for big cats. Day 3: Morning game drive then travel to Lake Nakuru. Day 4: Flamingo viewing and rhino tracking at Lake Nakuru. Day 5: Morning game drive then return to Nairobi.",
-      priceOptions: [
-        { people: 2, price: 359, currency: "euro" },
-        { people: 3, price: 290, currency: "euro" },
-        { people: 4, price: 150, currency: "euro" },
-        { people: 5, price: 140, currency: "euro" },
-        { people: 6, price: 130, currency: "euro" },
-        { people: 7, price: 120, currency: "euro" },
-        { people: 8, price: 110, currency: "euro" },
-      ],
-      priceRange: { min: 110, max: 359 },
-    },
-    {
-      id: 2,
-      name: "Maasai Mara Great Migration Special",
-      description:
-        "Focused experience during migration season with extended Mara stays for river crossings. Witness the greatest wildlife spectacle on earth.",
-      duration: "4-6 days recommended",
-      highlights: ["River Crossings", "Predator Action", "Migration Herds"],
-      fullItinerary:
-        "Day 1: Arrival at Mara River camp. Day 2: Full day at Mara River waiting for crossings. Day 3: Early morning game drive to witness predator action. Day 4: Migration herd tracking. Day 5: Maasai cultural visit. Day 6: Departure.",
-      priceOptions: [
-        { people: 2, price: 450, currency: "euro" },
-        { people: 3, price: 380, currency: "euro" },
-        { people: 4, price: 280, currency: "euro" },
-        { people: 5, price: 220, currency: "euro" },
-        { people: 6, price: 200, currency: "euro" },
-        { people: 7, price: 180, currency: "euro" },
-        { people: 8, price: 160, currency: "euro" },
-      ],
-      priceRange: { min: 160, max: 450 },
-    },
-    {
-      id: 3,
-      name: "Maasai Mara Luxury Safari",
-      description:
-        "Premium experience with luxury accommodations, hot air balloon rides, and private guides for an unforgettable adventure.",
-      duration: "4-7 days recommended",
-      highlights: ["Balloon Safari", "Luxury Lodges", "Private Guides"],
-      fullItinerary:
-        "Day 1: Luxury lodge check-in with spa treatment. Day 2: Hot air balloon safari at sunrise. Day 3-5: Private game drives with expert guides. Day 6: Bush dinner under the stars. Day 7: Relaxation and departure.",
-      priceOptions: [
-        { people: 2, price: 750, currency: "euro" },
-        { people: 3, price: 650, currency: "euro" },
-        { people: 4, price: 550, currency: "euro" },
-        { people: 5, price: 500, currency: "euro" },
-        { people: 6, price: 450, currency: "euro" },
-        { people: 7, price: 420, currency: "euro" },
-        { people: 8, price: 400, currency: "euro" },
-      ],
-      priceRange: { min: 400, max: 750 },
-    },
-    {
-      id: 4,
-      name: "Maasai Mara → Amboseli → Tsavo",
-      description:
-        "Extended safari adventure covering three of Kenya's most iconic parks. Experience the Mara's big cats, Amboseli's elephants with Kilimanjaro backdrop, and Tsavo's red elephants.",
-      duration: "7-10 days recommended",
-      highlights: ["Kilimanjaro Views", "Red Elephants", "Big Five"],
-      fullItinerary:
-        "Day 1-2: Maasai Mara game drives. Day 3-4: Travel to Amboseli for elephant viewing. Day 5-7: Tsavo East and West exploration. Day 8-9: Return journey with game drives. Day 10: Departure.",
-      priceOptions: [
-        { people: 2, price: 890, currency: "euro" },
-        { people: 3, price: 750, currency: "euro" },
-        { people: 4, price: 620, currency: "euro" },
-        { people: 5, price: 550, currency: "euro" },
-        { people: 6, price: 500, currency: "euro" },
-        { people: 7, price: 460, currency: "euro" },
-        { people: 8, price: 430, currency: "euro" },
-      ],
-      priceRange: { min: 430, max: 890 },
-    },
-    {
-      id: 5,
-      name: "Maasai Mara Budget Camping Safari",
-      description:
-        "Affordable camping safari perfect for backpackers and budget travelers. Experience the magic of the Mara without breaking the bank.",
-      duration: "3-4 days recommended",
-      highlights: ["Budget Friendly", "Camping Experience", "Great Wildlife"],
-      fullItinerary:
-        "Day 1: Arrival and camp setup, afternoon game drive. Day 2: Full day game drive with picnic lunch. Day 3: Morning game drive, then return to Nairobi.",
-      priceOptions: [
-        { people: 2, price: 180, currency: "euro" },
-        { people: 3, price: 150, currency: "euro" },
-        { people: 4, price: 120, currency: "euro" },
-        { people: 5, price: 100, currency: "euro" },
-        { people: 6, price: 90, currency: "euro" },
-        { people: 7, price: 85, currency: "euro" },
-        { people: 8, price: 80, currency: "euro" },
-      ],
-      priceRange: { min: 80, max: 180 },
-    },
-    {
-      id: 6,
-      name: "Maasai Mara Photography Safari",
-      description:
-        "Specialized safari for photography enthusiasts with expert guides, prime positioning, and extended game drives during golden hours.",
-      duration: "5-7 days recommended",
-      highlights: [
-        "Expert Photography Guide",
-        "Golden Hour Drives",
-        "Private Vehicle",
-      ],
-      fullItinerary:
-        "Day 1: Arrival and photography briefing. Day 2-5: Early morning and late afternoon photography sessions. Day 6: Editing workshop and farewell dinner. Day 7: Departure.",
-      priceOptions: [
-        { people: 2, price: 1200, currency: "euro" },
-        { people: 3, price: 950, currency: "euro" },
-        { people: 4, price: 800, currency: "euro" },
-        { people: 5, price: 700, currency: "euro" },
-        { people: 6, price: 650, currency: "euro" },
-      ],
-      priceRange: { min: 650, max: 1200 },
-    },
-    {
-      id: 7,
-      name: "Maasai Mara Honeymoon Special",
-      description:
-        "Romantic safari experience with luxury accommodations, private dining, and special surprises for newlyweds celebrating their love.",
-      duration: "5-7 days recommended",
-      highlights: ["Romantic Setup", "Private Dining", "Spa Treatment"],
-      fullItinerary:
-        "Day 1: Welcome champagne and flower setup. Day 2-5: Private game drives with picnic. Day 6: Couples spa treatment and bush dinner. Day 7: Farewell breakfast in bed.",
-      priceOptions: [
-        { people: 2, price: 1500, currency: "euro" },
-        { people: 3, price: 1200, currency: "euro" },
-        { people: 4, price: 1000, currency: "euro" },
-      ],
-      priceRange: { min: 1000, max: 1500 },
-    },
-  ];
+  const [safariRoutes, setSafariRoutes] = useState([]);
 
-  const [safariRoutes, setSafariRoutes] = useState(() => {
-    try {
-      const savedRoutes = localStorage.getItem("maasaiMaraPackages");
-      if (savedRoutes) {
-        return JSON.parse(savedRoutes);
-      }
-      localStorage.setItem(
-        "maasaiMaraPackages",
-        JSON.stringify(defaultSafariRoutes),
-      );
-      return defaultSafariRoutes;
-    } catch (error) {
-      console.error("Error loading safari packages:", error);
-      return defaultSafariRoutes;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("maasaiMaraPackages", JSON.stringify(safariRoutes));
-    } catch (error) {
-      console.error("Error saving safari packages:", error);
-    }
-  }, [safariRoutes]);
-
-  const saveSafariRoutesToStorage = (routes) => {
-    try {
-      localStorage.setItem("maasaiMaraPackages", JSON.stringify(routes));
-    } catch (error) {
-      console.error("Error saving to localStorage:", error);
-      Swal.fire({
-        title: "Storage Error",
-        text: "Could not save safari packages. Please try again.",
-        icon: "error",
-        confirmButtonColor: "#2D6A4F",
-      });
-    }
+  // Helper function to check if package starts with Maasai Mara
+  const startsWithMaasaiMara = (packageName) => {
+    if (!packageName) return false;
+    const trimmedLower = packageName.toLowerCase().trim();
+    return trimmedLower.startsWith("maasai mara");
   };
 
+  // Check authentication on mount and listen for auth changes
   useEffect(() => {
-    const checkBackendConnection = async () => {
-      try {
-        const packagesResponse = await fetch(
-          "http://localhost:5000/api/safari-cards",
-        );
-        if (packagesResponse.ok) {
-          const packagesData = await packagesResponse.json();
-          const filteredPackages =
-            packagesData.success && packagesData.data
-              ? packagesData.data.filter(
-                  (pkg) =>
-                    pkg.name &&
-                    (pkg.name.toLowerCase().includes("maasai mara") ||
-                      pkg.name.toLowerCase().includes("masai mara") ||
-                      pkg.name.toLowerCase().includes("mara")),
-                )
-              : [];
-
-          setBackendStatus({
-            connected: true,
-            packageCount: filteredPackages.length,
-          });
-
-          if (filteredPackages.length > 0) {
-            loadPackagesFromBackend(filteredPackages);
-          }
-        }
-      } catch (error) {
-        console.log("Backend not connected, using local storage only");
-        setBackendStatus({
-          connected: false,
-          packageCount: 0,
-        });
+    const checkAuth = () => {
+      const token = localStorage.getItem("access_token");
+      const user = localStorage.getItem("user");
+      if (token && user) {
+        setIsAuthenticated(true);
+        setCurrentUser(JSON.parse(user));
+      } else {
+        setIsAuthenticated(false);
+        setCurrentUser(null);
       }
     };
 
-    checkBackendConnection();
+    checkAuth();
+
+    // Listen for auth changes from footer
+    const handleAuthChange = () => {
+      checkAuth();
+    };
+
+    window.addEventListener("authChange", handleAuthChange);
+    window.addEventListener("storage", handleAuthChange);
+
+    return () => {
+      window.removeEventListener("authChange", handleAuthChange);
+      window.removeEventListener("storage", handleAuthChange);
+    };
   }, []);
 
-  const loadPackagesFromBackend = (backendPackages) => {
+  // Fetch packages from backend on mount
+  const fetchPackagesFromBackend = async () => {
+    setBackendLoading(true);
     try {
-      const convertedPackages = backendPackages.map((pkg) => {
-        const hasPrices = pkg.prices && pkg.prices.length > 0;
-        const basePrice = hasPrices ? pkg.prices[0] : null;
+      const response = await fetch("http://localhost:5000/api/safari-cards");
+      if (response.ok) {
+        const packagesData = await response.json();
+        if (packagesData.success && packagesData.data) {
+          // Filter only packages that start with Maasai Mara
+          const maasaiPackages = packagesData.data.filter((pkg) =>
+            startsWithMaasaiMara(pkg.name),
+          );
 
-        return {
-          id: `backend_${pkg.id}`,
-          backendId: pkg.id,
-          name: pkg.name,
-          description: pkg.description || "",
-          duration: `${pkg.total_days || 5}-${(pkg.total_days || 5) + 2} days recommended`,
-          highlights: pkg.highlights || [],
-          fullItinerary: pkg.description || "",
-          priceOptions:
-            hasPrices && basePrice.prices
-              ? [
-                  {
-                    people: 2,
-                    price: basePrice.prices.pax_2_price || 359,
-                    currency: "euro",
-                  },
-                  {
-                    people: 4,
-                    price: basePrice.prices.pax_4_price || 150,
-                    currency: "euro",
-                  },
-                  {
-                    people: 6,
-                    price: basePrice.prices.pax_6_price || 130,
-                    currency: "euro",
-                  },
-                  {
-                    people: 8,
-                    price: basePrice.prices.pax_8_price || 110,
-                    currency: "euro",
-                  },
-                ]
-              : defaultSafariRoutes[0].priceOptions,
-          priceRange: {
-            min:
-              hasPrices && basePrice.prices
-                ? Math.min(
-                    basePrice.prices.pax_2_price || 359,
-                    basePrice.prices.pax_4_price || 150,
-                    basePrice.prices.pax_6_price || 130,
-                    basePrice.prices.pax_8_price || 110,
-                  )
-                : 100,
-            max:
-              hasPrices && basePrice.prices
-                ? Math.max(
-                    basePrice.prices.pax_2_price || 359,
-                    basePrice.prices.pax_4_price || 150,
-                    basePrice.prices.pax_6_price || 130,
-                    basePrice.prices.pax_8_price || 110,
-                  )
-                : 500,
-          },
-        };
-      });
+          const convertedPackages = maasaiPackages.map((pkg) => {
+            const hasPrices = pkg.prices && pkg.prices.length > 0;
+            const basePrice = hasPrices ? pkg.prices[0] : null;
 
-      const allPackages = [...safariRoutes.filter((pkg) => !pkg.backendId)];
-      convertedPackages.forEach((backendPkg) => {
-        const exists = allPackages.some(
-          (localPkg) =>
-            localPkg.backendId === backendPkg.backendId ||
-            localPkg.name === backendPkg.name,
-        );
-        if (!exists) {
-          allPackages.push(backendPkg);
+            return {
+              id: pkg.id,
+              backendId: pkg.id,
+              name: pkg.name,
+              description: pkg.description || "",
+              duration: `${pkg.total_days || 5}-${(pkg.total_days || 5) + 2} days recommended`,
+              highlights: pkg.highlights || [],
+              fullItinerary: pkg.description || "",
+              priceOptions:
+                hasPrices && basePrice.prices
+                  ? [
+                      {
+                        people: 2,
+                        price: basePrice.prices.pax_2_price || 359,
+                        currency: "euro",
+                      },
+                      {
+                        people: 4,
+                        price: basePrice.prices.pax_4_price || 150,
+                        currency: "euro",
+                      },
+                      {
+                        people: 6,
+                        price: basePrice.prices.pax_6_price || 130,
+                        currency: "euro",
+                      },
+                      {
+                        people: 8,
+                        price: basePrice.prices.pax_8_price || 110,
+                        currency: "euro",
+                      },
+                    ]
+                  : [
+                      { people: 2, price: 359, currency: "euro" },
+                      { people: 4, price: 150, currency: "euro" },
+                      { people: 6, price: 130, currency: "euro" },
+                      { people: 8, price: 110, currency: "euro" },
+                    ],
+              priceRange: {
+                min:
+                  hasPrices && basePrice.prices
+                    ? Math.min(
+                        basePrice.prices.pax_2_price || 359,
+                        basePrice.prices.pax_4_price || 150,
+                        basePrice.prices.pax_6_price || 130,
+                        basePrice.prices.pax_8_price || 110,
+                      )
+                    : 110,
+                max:
+                  hasPrices && basePrice.prices
+                    ? Math.max(
+                        basePrice.prices.pax_2_price || 359,
+                        basePrice.prices.pax_4_price || 150,
+                        basePrice.prices.pax_6_price || 130,
+                        basePrice.prices.pax_8_price || 110,
+                      )
+                    : 500,
+              },
+            };
+          });
+
+          setSafariRoutes(convertedPackages);
+          setBackendStatus({
+            connected: true,
+            packageCount: convertedPackages.length,
+          });
+        } else {
+          setSafariRoutes([]);
+          setBackendStatus({
+            connected: true,
+            packageCount: 0,
+          });
         }
-      });
-
-      setSafariRoutes(allPackages);
-      saveSafariRoutesToStorage(allPackages);
+      } else {
+        throw new Error("Failed to fetch packages");
+      }
     } catch (error) {
-      console.error("Error loading packages from backend:", error);
+      console.error("Error fetching from backend:", error);
+      setBackendStatus({
+        connected: false,
+        packageCount: 0,
+      });
+      setSafariRoutes([]);
+      // Only show error to admins
+      if (isAuthenticated) {
+        Swal.fire({
+          title: "Backend Connection Failed",
+          text: "Could not connect to the database. Please ensure the backend server is running on port 5000.",
+          icon: "error",
+          confirmButtonColor: "#2D6A4F",
+        });
+      }
+    } finally {
+      setBackendLoading(false);
     }
   };
 
+  // Filter packages to only show those starting with "Maasai Mara"
+  useEffect(() => {
+    const filtered = safariRoutes.filter((route) =>
+      startsWithMaasaiMara(route.name),
+    );
+    setFilteredSafariRoutes(filtered);
+    setShowAllPackages(false);
+  }, [safariRoutes]);
+
+  // Check backend connection on mount and fetch packages
+  useEffect(() => {
+    fetchPackagesFromBackend();
+  }, []);
+
+  // Check for existing lodge selection from localStorage (only for booking data)
   useEffect(() => {
     const checkExistingSelection = () => {
       try {
@@ -729,6 +581,16 @@ const Maasaimara = () => {
         ? adminForm.routeName
         : `Maasai Mara → ${adminForm.routeName}`;
 
+    if (!startsWithMaasaiMara(routeName)) {
+      Swal.fire({
+        title: "Invalid Package Name",
+        text: "All packages on this page must start with 'Maasai Mara'. Please ensure your package is for Maasai Mara National Reserve.",
+        icon: "error",
+        confirmButtonColor: "#2D6A4F",
+      });
+      return;
+    }
+
     const prices = adminForm.priceOptions.map((option) => option.price);
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
@@ -739,50 +601,83 @@ const Maasaimara = () => {
       .filter((h) => h.length > 0);
 
     const updatedRoute = {
-      ...editingRoute,
+      id: editingRoute.backendId || editingRoute.id,
       name: routeName,
       description: adminForm.description,
       duration: adminForm.duration,
       highlights: highlightsArray,
-      fullItinerary: adminForm.itinerary,
-      priceOptions: adminForm.priceOptions,
-      priceRange: { min: minPrice, max: maxPrice },
+      total_days: parseInt(adminForm.duration) || 5,
+      prices: [
+        {
+          people: 2,
+          prices: {
+            pax_2_price:
+              adminForm.priceOptions.find((o) => o.people === 2)?.price || 359,
+            pax_4_price:
+              adminForm.priceOptions.find((o) => o.people === 4)?.price || 150,
+            pax_6_price:
+              adminForm.priceOptions.find((o) => o.people === 6)?.price || 130,
+            pax_8_price:
+              adminForm.priceOptions.find((o) => o.people === 8)?.price || 110,
+          },
+        },
+      ],
     };
 
-    const updatedRoutes = safariRoutes.map((route) =>
-      route.id === editingRoute.id ? updatedRoute : route,
-    );
+    try {
+      setIsLoading(true);
 
-    setSafariRoutes(updatedRoutes);
-    saveSafariRoutesToStorage(updatedRoutes);
+      const response = await fetch(
+        `http://localhost:5000/api/safari-cards/${editingRoute.backendId || editingRoute.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          },
+          body: JSON.stringify(updatedRoute),
+        },
+      );
 
-    if (selectedRoute && selectedRoute.id === editingRoute.id) {
-      setSelectedRoute(updatedRoute);
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        Swal.fire({
+          title: "✅ Package Updated!",
+          html: `
+            <div class="text-left">
+              <p><strong>${updatedRoute.name}</strong> has been updated successfully in the database.</p>
+              <div class="mt-4 p-3 bg-gray-50 rounded">
+                <p class="text-sm"><strong>Price Range:</strong> €${minPrice} - €${maxPrice}</p>
+                <p class="text-sm"><strong>Duration:</strong> ${updatedRoute.duration}</p>
+              </div>
+            </div>
+          `,
+          icon: "success",
+          confirmButtonColor: "#2D6A4F",
+        });
+
+        await fetchPackagesFromBackend();
+      } else {
+        throw new Error(result.error || "Failed to update package");
+      }
+    } catch (error) {
+      console.error("Error updating package:", error);
+      Swal.fire({
+        title: "Update Failed",
+        text: "Could not update the package in the database. Please try again.",
+        icon: "error",
+        confirmButtonColor: "#2D6A4F",
+      });
+    } finally {
+      setIsLoading(false);
+      setShowEditModal(false);
+      setEditingRoute(null);
     }
-
-    Swal.fire({
-      title: "✅ Package Updated!",
-      html: `
-        <div class="text-left">
-          <p><strong>${updatedRoute.name}</strong> has been updated successfully.</p>
-          <div class="mt-4 p-3 bg-gray-50 rounded">
-            <p class="text-sm"><strong>Price Range:</strong> €${minPrice} - €${maxPrice}</p>
-            <p class="text-sm"><strong>Duration:</strong> ${updatedRoute.duration}</p>
-          </div>
-        </div>
-      `,
-      icon: "success",
-      confirmButtonColor: "#2D6A4F",
-    });
-
-    setShowEditModal(false);
-    setEditingRoute(null);
   };
 
   const savePackageToBackend = async (packageData) => {
     try {
-      setIsLoading(true);
-
       const routeName =
         packageData.name.includes("Maasai Mara") ||
         packageData.name.includes("Masai Mara") ||
@@ -795,17 +690,34 @@ const Maasaimara = () => {
         description: packageData.description,
         duration: packageData.duration || "5-7 days recommended",
         itinerary: packageData.fullItinerary || "",
-        priceOptions: packageData.priceOptions.map((option) => ({
-          people: option.people,
-          price: option.price,
-          currency: option.currency || "euro",
-        })),
+        total_days: parseInt(packageData.duration) || 5,
+        highlights: packageData.highlights,
+        prices: [
+          {
+            people: 2,
+            prices: {
+              pax_2_price:
+                packageData.priceOptions.find((o) => o.people === 2)?.price ||
+                359,
+              pax_4_price:
+                packageData.priceOptions.find((o) => o.people === 4)?.price ||
+                150,
+              pax_6_price:
+                packageData.priceOptions.find((o) => o.people === 6)?.price ||
+                130,
+              pax_8_price:
+                packageData.priceOptions.find((o) => o.people === 8)?.price ||
+                110,
+            },
+          },
+        ],
       };
 
       const response = await fetch("http://localhost:5000/api/safari-cards", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
         },
         body: JSON.stringify(backendPackage),
       });
@@ -813,148 +725,13 @@ const Maasaimara = () => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        Swal.fire({
-          title: "✅ Success!",
-          text: "Safari package saved to database successfully",
-          icon: "success",
-          confirmButtonColor: "#2D6A4F",
-        });
-
-        return {
-          success: true,
-          data: result,
-          backendId: result.package_id,
-        };
+        return { success: true, data: result, backendId: result.package_id };
       } else {
         throw new Error(result.error || "Failed to save package");
       }
     } catch (error) {
       console.error("Error saving to backend:", error);
-      Swal.fire({
-        title: "Backend Error",
-        text: "Could not save to database. Saved locally instead.",
-        icon: "warning",
-        confirmButtonColor: "#2D6A4F",
-      });
       return { success: false, error: error.message };
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const syncWithBackend = async () => {
-    setBackendLoading(true);
-    Swal.fire({
-      title: "Syncing...",
-      text: "Please wait while we sync with the database",
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      },
-    });
-
-    try {
-      const response = await fetch("http://localhost:5000/api/safari-cards");
-      if (response.ok) {
-        const packagesData = await response.json();
-
-        if (packagesData.success) {
-          const filteredPackages = packagesData.data.filter(
-            (pkg) =>
-              pkg.name &&
-              (pkg.name.toLowerCase().includes("maasai mara") ||
-                pkg.name.toLowerCase().includes("masai mara") ||
-                pkg.name.toLowerCase().includes("mara")),
-          );
-
-          const backendPackages = filteredPackages.map((pkg) => {
-            const hasPrices = pkg.prices && pkg.prices.length > 0;
-            const basePrice = hasPrices ? pkg.prices[0] : null;
-
-            return {
-              id: `backend_${pkg.id}`,
-              backendId: pkg.id,
-              name: pkg.name,
-              description: pkg.description || "",
-              duration: `${pkg.total_days || 5}-${(pkg.total_days || 5) + 2} days recommended`,
-              highlights: pkg.highlights || [],
-              fullItinerary: pkg.description || "",
-              priceOptions:
-                hasPrices && basePrice.prices
-                  ? [
-                      {
-                        people: 2,
-                        price: basePrice.prices.pax_2_price || 359,
-                        currency: "euro",
-                      },
-                      {
-                        people: 4,
-                        price: basePrice.prices.pax_4_price || 150,
-                        currency: "euro",
-                      },
-                      {
-                        people: 6,
-                        price: basePrice.prices.pax_6_price || 130,
-                        currency: "euro",
-                      },
-                      {
-                        people: 8,
-                        price: basePrice.prices.pax_8_price || 110,
-                        currency: "euro",
-                      },
-                    ]
-                  : defaultSafariRoutes[0].priceOptions,
-              priceRange: {
-                min:
-                  hasPrices && basePrice.prices
-                    ? Math.min(
-                        basePrice.prices.pax_2_price || 359,
-                        basePrice.prices.pax_4_price || 150,
-                        basePrice.prices.pax_6_price || 130,
-                        basePrice.prices.pax_8_price || 110,
-                      )
-                    : 100,
-                max:
-                  hasPrices && basePrice.prices
-                    ? Math.max(
-                        basePrice.prices.pax_2_price || 359,
-                        basePrice.prices.pax_4_price || 150,
-                        basePrice.prices.pax_6_price || 130,
-                        basePrice.prices.pax_8_price || 110,
-                      )
-                    : 500,
-              },
-            };
-          });
-
-          const localPackages = safariRoutes.filter((pkg) => !pkg.backendId);
-          const allPackages = [...localPackages, ...backendPackages];
-
-          setSafariRoutes(allPackages);
-          saveSafariRoutesToStorage(allPackages);
-
-          setBackendStatus((prev) => ({
-            ...prev,
-            packageCount: backendPackages.length,
-          }));
-
-          Swal.fire({
-            title: "✅ Sync Complete!",
-            text: `Loaded ${backendPackages.length} Maasai Mara packages from backend`,
-            icon: "success",
-            confirmButtonColor: "#2D6A4F",
-          });
-        }
-      }
-    } catch (error) {
-      Swal.fire({
-        title: "Sync Failed",
-        text: "Could not sync with backend. Please check your connection.",
-        icon: "error",
-        confirmButtonColor: "#2D6A4F",
-      });
-    } finally {
-      setBackendLoading(false);
     }
   };
 
@@ -1046,6 +823,16 @@ const Maasaimara = () => {
         ? adminForm.routeName
         : `Maasai Mara → ${adminForm.routeName}`;
 
+    if (!startsWithMaasaiMara(routeName)) {
+      Swal.fire({
+        title: "Invalid Package Name",
+        text: "All packages on this page must start with 'Maasai Mara'.",
+        icon: "error",
+        confirmButtonColor: "#2D6A4F",
+      });
+      return;
+    }
+
     const prices = adminForm.priceOptions.map((option) => option.price);
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
@@ -1056,7 +843,6 @@ const Maasaimara = () => {
       .filter((h) => h.length > 0);
 
     const newRoute = {
-      id: Date.now(),
       name: routeName,
       description: adminForm.description,
       duration: adminForm.duration,
@@ -1066,83 +852,108 @@ const Maasaimara = () => {
       priceRange: { min: minPrice, max: maxPrice },
     };
 
-    let backendResult = null;
-    if (backendStatus.connected) {
-      backendResult = await savePackageToBackend(newRoute);
+    const backendResult = await savePackageToBackend(newRoute);
 
-      if (backendResult.success && backendResult.backendId) {
-        newRoute.backendId = backendResult.backendId;
-        newRoute.id = `backend_${backendResult.backendId}`;
-      }
-    }
-
-    const updatedRoutes = [...safariRoutes, newRoute];
-    setSafariRoutes(updatedRoutes);
-    saveSafariRoutesToStorage(updatedRoutes);
-
-    Swal.fire({
-      title: "✅ Package Created!",
-      html: `
-        <div class="text-left">
-          <p><strong>${newRoute.name}</strong> has been created successfully.</p>
-          <div class="mt-4 p-3 bg-gray-50 rounded">
-            <p class="text-sm"><strong>Status:</strong> ${backendStatus.connected && backendResult?.success ? "Saved to Database ✓" : "Saved Locally Only"}</p>
-            <p class="text-sm"><strong>Price Range:</strong> €${minPrice} - €${maxPrice}</p>
-            <p class="text-sm"><strong>Duration:</strong> ${newRoute.duration}</p>
+    if (backendResult.success) {
+      Swal.fire({
+        title: "✅ Package Created!",
+        html: `
+          <div class="text-left">
+            <p><strong>${newRoute.name}</strong> has been created successfully in the database.</p>
+            <div class="mt-4 p-3 bg-gray-50 rounded">
+              <p class="text-sm"><strong>Price Range:</strong> €${minPrice} - €${maxPrice}</p>
+              <p class="text-sm"><strong>Duration:</strong> ${newRoute.duration}</p>
+            </div>
           </div>
-        </div>
-      `,
-      icon: "success",
-      confirmButtonColor: "#2D6A4F",
-    });
+        `,
+        icon: "success",
+        confirmButtonColor: "#2D6A4F",
+      });
 
-    setAdminForm({
-      routeName: "",
-      description: "",
-      duration: "5-7 days recommended",
-      highlights: "",
-      itinerary: "",
-      priceOptions: [
-        { people: 2, price: 359, currency: "euro" },
-        { people: 3, price: 290, currency: "euro" },
-        { people: 4, price: 150, currency: "euro" },
-        { people: 5, price: 140, currency: "euro" },
-        { people: 6, price: 130, currency: "euro" },
-        { people: 7, price: 120, currency: "euro" },
-        { people: 8, price: 110, currency: "euro" },
-      ],
-    });
-    setShowAdminForm(false);
+      await fetchPackagesFromBackend();
+
+      setAdminForm({
+        routeName: "",
+        description: "",
+        duration: "5-7 days recommended",
+        highlights: "",
+        itinerary: "",
+        priceOptions: [
+          { people: 2, price: 359, currency: "euro" },
+          { people: 3, price: 290, currency: "euro" },
+          { people: 4, price: 150, currency: "euro" },
+          { people: 5, price: 140, currency: "euro" },
+          { people: 6, price: 130, currency: "euro" },
+          { people: 7, price: 120, currency: "euro" },
+          { people: 8, price: 110, currency: "euro" },
+        ],
+      });
+      setShowAdminForm(false);
+    } else {
+      Swal.fire({
+        title: "Creation Failed",
+        text: "Could not save the package to the database. Please try again.",
+        icon: "error",
+        confirmButtonColor: "#2D6A4F",
+      });
+    }
   };
 
-  const handleDeletePackage = (routeId) => {
+  const handleDeletePackage = (routeId, backendId) => {
     Swal.fire({
       title: "Delete Safari Package?",
-      text: "Are you sure you want to permanently delete this safari package? This action cannot be undone.",
+      text: "Are you sure you want to permanently delete this safari package from the database? This action cannot be undone.",
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#2D6A4F",
       cancelButtonColor: "#6b7280",
       confirmButtonText: "Yes, delete permanently!",
       cancelButtonText: "Cancel",
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed) {
-        const updatedRoutes = safariRoutes.filter(
-          (route) => route.id !== routeId,
-        );
-        setSafariRoutes(updatedRoutes);
-        saveSafariRoutesToStorage(updatedRoutes);
+        try {
+          const idToDelete = backendId || routeId;
+          const response = await fetch(
+            `http://localhost:5000/api/safari-cards/${idToDelete}`,
+            {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+              },
+            },
+          );
 
-        if (selectedRoute && selectedRoute.id === routeId) {
-          setSelectedRoute(null);
+          const resultData = await response.json();
+
+          if (response.ok && resultData.success) {
+            Swal.fire({
+              title: "Deleted Permanently!",
+              text: "The safari package has been permanently deleted from the database.",
+              icon: "success",
+              confirmButtonColor: "#2D6A4F",
+            });
+
+            if (
+              selectedRoute &&
+              (selectedRoute.backendId === idToDelete ||
+                selectedRoute.id === idToDelete)
+            ) {
+              setSelectedRoute(null);
+            }
+
+            await fetchPackagesFromBackend();
+          } else {
+            throw new Error(resultData.error || "Failed to delete package");
+          }
+        } catch (error) {
+          console.error("Error deleting package:", error);
+          Swal.fire({
+            title: "Delete Failed",
+            text: "Could not delete the package from the database. Please try again.",
+            icon: "error",
+            confirmButtonColor: "#2D6A4F",
+          });
         }
-
-        Swal.fire({
-          title: "Deleted Permanently!",
-          text: "The safari package has been permanently deleted and removed from storage.",
-          icon: "success",
-          confirmButtonColor: "#2D6A4F",
-        });
       }
     });
   };
@@ -1568,6 +1379,28 @@ ${bookingData.message || "No additional message"}
       </div>
     </div>
   );
+
+  const toggleCardExpand = (cardId) => {
+    setExpandedCards((prev) => ({
+      ...prev,
+      [cardId]: !prev[cardId],
+    }));
+  };
+
+  const toggleSection = (section) => {
+    setCollapsedSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
+
+  const [collapsedSections, setCollapsedSections] = useState({
+    parkInfo: false,
+    gallery: false,
+    attractions: false,
+    packages: false,
+    migration: false,
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#F5F0E8] to-[#E8E0D5] overflow-x-hidden">
@@ -1996,97 +1829,101 @@ ${bookingData.message || "No additional message"}
                     : "Select a lodge first to view available packages"}
                 </p>
                 <p className="text-sm text-[#2D6A4F] mt-1">
-                  📍 Only showing packages starting from Maasai Mara
+                  📍 Showing {filteredSafariRoutes.length} packages starting
+                  with "Maasai Mara"
                 </p>
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
-                {backendStatus.connected && (
+                <button
+                  onClick={fetchPackagesFromBackend}
+                  disabled={backendLoading}
+                  className={`${backendLoading ? "bg-gray-400" : "bg-[#2D6A4F] hover:bg-[#1B4D3E]"} text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    {backendLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-4 h-4 sm:w-5 sm:h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                          />
+                        </svg>
+                        Refresh
+                      </>
+                    )}
+                  </div>
+                </button>
+                {isAuthenticated && (
                   <button
-                    onClick={syncWithBackend}
-                    disabled={backendLoading}
-                    className={`${backendLoading ? "bg-gray-400" : "bg-[#2D6A4F] hover:bg-[#1B4D3E]"} text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none`}
+                    onClick={() => setShowAdminForm(true)}
+                    className="bg-[#8B6914] hover:bg-[#6B4F10] text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none"
                   >
                     <div className="flex items-center justify-center gap-2">
-                      {backendLoading ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Syncing...
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            className="w-4 h-4 sm:w-5 sm:h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                            />
-                          </svg>
-                          Sync
-                        </>
-                      )}
+                      <svg
+                        className="w-4 h-4 sm:w-5 sm:h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                        />
+                      </svg>
+                      Add New Package
                     </div>
                   </button>
                 )}
-                <button
-                  onClick={() => setShowAdminForm(true)}
-                  className="bg-[#8B6914] hover:bg-[#6B4F10] text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none"
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <svg
-                      className="w-4 h-4 sm:w-5 sm:h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                      />
-                    </svg>
-                    Add New Package
-                  </div>
-                </button>
               </div>
             </div>
 
-            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-3 h-3 rounded-full ${backendStatus.connected ? "bg-green-500" : "bg-red-500"}`}
-                  ></div>
-                  <div>
-                    <p className="text-sm text-blue-800 font-medium">
-                      {backendStatus.connected
-                        ? "Backend Database Connected"
-                        : "Local Storage Only (Backend Offline)"}
-                    </p>
-                    <p className="text-xs text-blue-600">
-                      {backendStatus.connected
-                        ? `${backendStatus.packageCount} Maasai Mara packages in database, ${safariRoutes.length} locally`
-                        : "All data stored locally in browser"}
-                    </p>
+            {/* Admin-only backend status info */}
+            {isAuthenticated && (
+              <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-3 h-3 rounded-full ${backendStatus.connected ? "bg-green-500" : "bg-red-500"}`}
+                    ></div>
+                    <div>
+                      <p className="text-sm text-blue-800 font-medium">
+                        {backendStatus.connected
+                          ? "Backend Database Connected"
+                          : "Backend Offline - Cannot load packages"}
+                      </p>
+                      <p className="text-xs text-blue-600">
+                        {backendStatus.connected
+                          ? `${backendStatus.packageCount} Maasai Mara packages in database, ${filteredSafariRoutes.length} matching filter`
+                          : "Please ensure backend server is running on port 5000"}
+                      </p>
+                    </div>
                   </div>
+                  {backendStatus.connected ? (
+                    <div className="text-xs text-green-700 bg-green-100 px-3 py-1 rounded-full">
+                      Database Active
+                    </div>
+                  ) : (
+                    <div className="text-xs text-red-700 bg-red-100 px-3 py-1 rounded-full">
+                      Offline Mode
+                    </div>
+                  )}
                 </div>
-                {backendStatus.connected ? (
-                  <div className="text-xs text-green-700 bg-green-100 px-3 py-1 rounded-full">
-                    Database Active
-                  </div>
-                ) : (
-                  <div className="text-xs text-red-700 bg-red-100 px-3 py-1 rounded-full">
-                    Offline Mode
-                  </div>
-                )}
               </div>
-            </div>
+            )}
 
             {!selectedLodge ? (
               <div className="bg-gray-50 border border-gray-300 rounded-xl p-8 text-center">
@@ -2117,7 +1954,19 @@ ${bookingData.message || "No additional message"}
                   Select Your Lodge Now
                 </button>
               </div>
-            ) : safariRoutes.length === 0 ? (
+            ) : backendLoading ? (
+              <div className="text-center py-12 bg-white rounded-xl shadow-lg border border-[#2D6A4F]/20">
+                <div className="flex justify-center mb-4">
+                  <div className="w-12 h-12 border-4 border-[#2D6A4F] border-t-transparent rounded-full animate-spin"></div>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                  Loading Packages...
+                </h3>
+                <p className="text-gray-600">
+                  Please wait while we fetch packages from the database.
+                </p>
+              </div>
+            ) : filteredSafariRoutes.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-xl shadow-lg border border-[#2D6A4F]/20">
                 <svg
                   className="w-16 h-16 text-gray-400 mx-auto mb-4"
@@ -2133,26 +1982,37 @@ ${bookingData.message || "No additional message"}
                   />
                 </svg>
                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  No Safari Packages Available
+                  No Maasai Mara Packages Available
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  Click "Add New Package" to create your first Maasai Mara
-                  safari package.
+                  {`No packages starting with "Maasai Mara" were found in the database.`}
                 </p>
-                <button
-                  onClick={() => setShowAdminForm(true)}
-                  className="bg-[#5C3A21] hover:bg-[#4A2E1A] text-white px-6 py-3 rounded-lg font-semibold transition-colors"
-                >
-                  Create Your First Package
-                </button>
+                {isAuthenticated ? (
+                  <button
+                    onClick={() => setShowAdminForm(true)}
+                    className="bg-[#5C3A21] hover:bg-[#4A2E1A] text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Create Maasai Mara Package
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      const event = new CustomEvent("authChange");
+                      window.dispatchEvent(event);
+                    }}
+                    className="bg-[#1a2a4f] hover:bg-[#0f1a33] text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Sign In as Admin
+                  </button>
+                )}
               </div>
             ) : (
               <>
-                {/* Responsive Grid: 2x3 on mobile (2 columns, 3 rows = 6 items), 3x2 on desktop (3 columns, 2 rows = 6 items) */}
+                {/* Responsive Grid */}
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {(showAllPackages
-                    ? safariRoutes
-                    : safariRoutes.slice(0, 6)
+                    ? filteredSafariRoutes
+                    : filteredSafariRoutes.slice(0, 6)
                   ).map((route) => {
                     const isExpanded = expandedCards[route.id] || false;
                     const shouldTruncate =
@@ -2174,16 +2034,17 @@ ${bookingData.message || "No additional message"}
                         key={route.id}
                         className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 border border-[#2D6A4F]/20 relative group"
                       >
-                        <div className="absolute top-2 left-2 z-10 flex gap-1">
-                          {route.backendId && (
+                        {/* Admin-only badges - only visible to logged in users */}
+                        {isAuthenticated && (
+                          <div className="absolute top-2 left-2 z-10 flex gap-1">
                             <span className="bg-[#2D6A4F] text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
                               ✓ DB
                             </span>
-                          )}
-                          <span className="bg-[#8B6914] text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
-                            Local
-                          </span>
-                        </div>
+                            <span className="bg-green-700 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
+                              Mara Start
+                            </span>
+                          </div>
+                        )}
 
                         <div className="absolute top-2 right-2 z-10">
                           <span className="bg-[#5C3A21] text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
@@ -2191,46 +2052,51 @@ ${bookingData.message || "No additional message"}
                           </span>
                         </div>
 
-                        <div className="absolute top-12 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          <button
-                            onClick={() => handleEditPackage(route)}
-                            className="bg-[#8B6914] hover:bg-[#6B4F10] text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
-                            title="Edit Package"
-                          >
-                            <svg
-                              className="w-3 h-3 md:w-4 md:h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                        {/* Admin-only edit/delete buttons */}
+                        {isAuthenticated && (
+                          <div className="absolute top-12 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <button
+                              onClick={() => handleEditPackage(route)}
+                              className="bg-[#8B6914] hover:bg-[#6B4F10] text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
+                              title="Edit Package"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeletePackage(route.id)}
-                            className="bg-red-500 hover:bg-red-600 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
-                            title="Delete Package"
-                          >
-                            <svg
-                              className="w-3 h-3 md:w-4 md:h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                              <svg
+                                className="w-3 h-3 md:w-4 md:h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDeletePackage(route.id, route.backendId)
+                              }
+                              className="bg-red-500 hover:bg-red-600 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
+                              title="Delete Package"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
-                        </div>
+                              <svg
+                                className="w-3 h-3 md:w-4 md:h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
 
                         <div className="h-24 md:h-32 bg-gradient-to-r from-[#5C3A21] to-[#4A2E1A] flex items-center justify-center">
                           <div className="text-white text-center p-2">
@@ -2385,7 +2251,7 @@ ${bookingData.message || "No additional message"}
                 </div>
 
                 {/* Dropdown Button - Show More/Less Packages */}
-                {safariRoutes.length > 6 && (
+                {filteredSafariRoutes.length > 6 && (
                   <div className="mt-8 text-center">
                     <button
                       onClick={() => setShowAllPackages(!showAllPackages)}
@@ -2405,8 +2271,8 @@ ${bookingData.message || "No additional message"}
                         />
                       </svg>
                       {showAllPackages
-                        ? `Show Less Packages (${safariRoutes.length - 6} hidden)`
-                        : `Show More Packages (${safariRoutes.length - 6} more)`}
+                        ? `Show Less Packages (${filteredSafariRoutes.length - 6} hidden)`
+                        : `Show More Packages (${filteredSafariRoutes.length - 6} more)`}
                     </button>
                   </div>
                 )}
@@ -2826,8 +2692,8 @@ ${bookingData.message || "No additional message"}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#2D6A4F]"
                   required
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  "Maasai Mara → " will be added automatically
+                <p className="text-xs text-[#2D6A4F] mt-1 font-semibold">
+                  🦁 "Maasai Mara → " will be added automatically
                 </p>
               </div>
 

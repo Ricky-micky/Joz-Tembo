@@ -22,6 +22,9 @@ const About = () => {
   const [editingReview, setEditingReview] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyContent, setReplyContent] = useState("");
+  const [editingReply, setEditingReply] = useState(null);
+  const [hoveredReview, setHoveredReview] = useState(null);
+  const [expandedReviews, setExpandedReviews] = useState({});
 
   // Auth state
   const [user, setUser] = useState(() => {
@@ -37,7 +40,7 @@ const About = () => {
   );
 
   const [reviewForm, setReviewForm] = useState({
-    reviewer_name: "", // ✅ NEW: Name field for all users
+    reviewer_name: "",
     rating: 5,
     title: "",
     content: "",
@@ -135,7 +138,6 @@ const About = () => {
         headers.Authorization = `Bearer ${token}`;
       }
 
-      // ✅ Prepare data to send to backend
       const reviewData = {
         rating: reviewForm.rating,
         title: reviewForm.title,
@@ -144,16 +146,13 @@ const About = () => {
         package_used: reviewForm.package_used || null,
       };
 
-      // ✅ If user is NOT signed in, include reviewer_name
       if (!user) {
         reviewData.reviewer_name = reviewForm.reviewer_name || "Anonymous";
       }
-      // If user IS signed in, the backend will use the authenticated user's name
 
       if (editingReview) {
-        // ✅ Signed-in users can edit THEIR OWN reviews
         if (!token) {
-          alert("Please sign in to edit your review.");
+          alert("Please sign in to edit reviews.");
           return;
         }
         await axios.put(
@@ -163,7 +162,6 @@ const About = () => {
         );
         setEditingReview(null);
       } else {
-        // ✅ Anyone can post (auth optional)
         await axios.post(`${API_BASE_URL}/reviews`, reviewData, { headers });
       }
       setShowReviewForm(false);
@@ -176,13 +174,33 @@ const About = () => {
         package_used: "",
       });
       fetchReviews();
+      alert(
+        editingReview
+          ? "Review updated successfully!"
+          : "Review submitted successfully!",
+      );
     } catch (error) {
       alert(error.response?.data?.error || "Error submitting review");
     }
   };
 
-  // Handle edit review
+  // ANY signed-in user can edit ANY review
   const handleEditReview = (review) => {
+    if (!user) {
+      alert("Please sign in to edit reviews.");
+      return;
+    }
+
+    if (review.user?.id !== user.id && !user.is_admin) {
+      if (
+        !window.confirm(
+          "⚠️ You are about to edit someone else's review. Are you sure you want to continue?",
+        )
+      ) {
+        return;
+      }
+    }
+
     setReviewForm({
       reviewer_name: review.user?.name || review.reviewer_name || "",
       rating: review.rating,
@@ -193,32 +211,43 @@ const About = () => {
     });
     setEditingReview(review);
     setShowReviewForm(true);
-    // Scroll to form
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Handle delete review
-  const handleDeleteReview = async (reviewId) => {
-    if (!token) {
-      alert("Please sign in to delete your review.");
+  // ANY signed-in user can delete ANY review
+  const handleDeleteReview = async (reviewId, reviewUserId, reviewTitle) => {
+    if (!user) {
+      alert("Please sign in to delete reviews.");
       return;
     }
-    if (!window.confirm("Delete this review? This action cannot be undone."))
-      return;
+
+    let confirmMessage = "Delete this review? This action cannot be undone.";
+    if (reviewUserId !== user.id && !user.is_admin) {
+      confirmMessage = `⚠️ WARNING: You are about to delete "${reviewTitle}" by another user. This action cannot be undone. Are you sure?`;
+    }
+
+    if (!window.confirm(confirmMessage)) return;
+
     try {
       await axios.delete(`${API_BASE_URL}/reviews/${reviewId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchReviews();
+      await fetchReviews();
+      alert("Review deleted successfully!");
     } catch (error) {
+      console.error("Delete error:", error);
       alert(error.response?.data?.error || "Error deleting review");
     }
   };
 
-  // ✅ Admin only - submit reply
+  // Any authenticated user can submit a reply
   const handleSubmitReply = async (reviewId) => {
-    if (!token || !user?.is_admin) {
-      alert("Admin sign-in required. Please sign in via the footer.");
+    if (!token) {
+      alert("Please sign in to reply to reviews.");
+      return;
+    }
+    if (!replyContent.trim()) {
+      alert("Please enter a reply.");
       return;
     }
     try {
@@ -230,15 +259,40 @@ const About = () => {
       setReplyingTo(null);
       setReplyContent("");
       fetchReviews();
+      alert("Reply submitted successfully!");
     } catch (error) {
       alert(error.response?.data?.error || "Error submitting reply");
     }
   };
 
-  // ✅ Admin only - delete reply
+  // Handle edit reply
+  const handleEditReply = async (replyId, newContent) => {
+    if (!token) {
+      alert("Please sign in to edit your reply.");
+      return;
+    }
+    if (!newContent.trim()) {
+      alert("Please enter a reply.");
+      return;
+    }
+    try {
+      await axios.put(
+        `${API_BASE_URL}/replies/${replyId}`,
+        { content: newContent },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setEditingReply(null);
+      fetchReviews();
+      alert("Reply updated successfully!");
+    } catch (error) {
+      alert(error.response?.data?.error || "Error editing reply");
+    }
+  };
+
+  // Handle delete reply
   const handleDeleteReply = async (replyId) => {
-    if (!token || !user?.is_admin) {
-      alert("Admin sign-in required. Please sign in via the footer.");
+    if (!token) {
+      alert("Please sign in to delete your reply.");
       return;
     }
     if (!window.confirm("Delete this reply?")) return;
@@ -247,18 +301,31 @@ const About = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       fetchReviews();
+      alert("Reply deleted successfully!");
     } catch (error) {
       alert(error.response?.data?.error || "Error deleting reply");
     }
   };
 
-  // ✅ Check if current user can edit/delete a review
+  // ANY signed-in user can edit/delete ANY review
   const canModifyReview = (review) => {
     if (!user) return false;
-    // Admin can modify any review
+    return true;
+  };
+
+  // Check if current user can modify a reply
+  const canModifyReply = (reply) => {
+    if (!user) return false;
     if (user.is_admin) return true;
-    // Regular user can only modify their own reviews
-    return review.user?.id === user.id;
+    return reply.user?.id === user.id;
+  };
+
+  // Toggle expanded review content on mobile
+  const toggleExpand = (reviewId) => {
+    setExpandedReviews((prev) => ({
+      ...prev,
+      [reviewId]: !prev[reviewId],
+    }));
   };
 
   const StarRating = ({
@@ -273,10 +340,15 @@ const About = () => {
           key={star}
           type={interactive ? "button" : undefined}
           onClick={() => interactive && onRatingChange?.(star)}
-          className={`${size} ${interactive ? "cursor-pointer hover:scale-110 transition-transform" : ""}`}
+          className={`${size} ${interactive ? "active:scale-95 transition-transform min-w-[32px] min-h-[32px]" : ""}`}
           disabled={!interactive}
+          aria-label={`Rate ${star} stars`}
         >
-          {star <= rating ? "⭐" : "☆"}
+          <span
+            className={star <= rating ? "text-yellow-400" : "text-gray-300"}
+          >
+            ★
+          </span>
         </button>
       ))}
     </div>
@@ -362,14 +434,14 @@ const About = () => {
     },
   ];
 
-  // Partners data (shortened for brevity)
+  // Partners data
   const partners = [
     {
       id: 1,
       name: "Cimo Services",
       imageUrl: "/assets/Cimo.png",
       story:
-        "Since 2010, Cimo Services has been our trusted transportation partner...",
+        "Since 2010, Cimo Services has been our trusted transportation partner. They provide reliable, comfortable, and safe transfers for all our guests from the airport to their accommodations and between destinations. Their fleet of modern vehicles and professional drivers ensure a seamless travel experience.",
       established: "2010",
       location: "Nairobi, Kenya",
       specialty: "Transportation & Logistics",
@@ -379,7 +451,7 @@ const About = () => {
       name: "Kenya Safari Lodges",
       imageUrl: "/assets/ken-safa.png",
       story:
-        "Our partnership with Kenya Safari Lodges ensures our guests experience the finest accommodations...",
+        "Our partnership with Kenya Safari Lodges ensures our guests experience the finest accommodations in the country's most spectacular locations. From luxury tented camps to exclusive lodges, they offer exceptional service and authentic African hospitality that perfectly complements our safari experiences.",
       established: "1985",
       location: "Multiple Locations",
       specialty: "Luxury Accommodations",
@@ -389,7 +461,7 @@ const About = () => {
       name: "Ashnil",
       imageUrl: "/assets/ash.png",
       story:
-        "Ashnil's luxurious camps offer unparalleled wildlife viewing experiences...",
+        "Ashnil's luxurious camps offer unparalleled wildlife viewing experiences in Kenya's premier game reserves. Located strategically near waterholes and migration routes, their properties provide front-row seats to nature's greatest spectacles while maintaining the highest standards of comfort and service.",
       established: "2005",
       location: "Maasai Mara & Tsavo",
       specialty: "Luxury Safari Camps",
@@ -398,7 +470,8 @@ const About = () => {
       id: 4,
       name: "Salt Lick",
       imageUrl: "/assets/sallick.png",
-      story: "The iconic Salt Lick Lodge provides a unique vantage point...",
+      story:
+        "The iconic Salt Lick Lodge provides a unique vantage point for wildlife viewing in the Taita Hills Sanctuary. Built on stilts above a natural salt lick and waterhole, it offers guests an unforgettable experience of watching elephants, buffalo, and other wildlife from their rooms or the suspended walkways.",
       established: "1990",
       location: "Taita Hills",
       specialty: "Unique Wildlife Viewing",
@@ -417,13 +490,13 @@ const About = () => {
     };
   }, [selectedPartner, selectedMission, selectedValue]);
 
-  // Modal components (shortened - same as before)
-  const MissionModal = ({ onClose }) => (
+  // Partner Modal Component
+  const PartnerModal = ({ partner, onClose }) => (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
@@ -433,11 +506,113 @@ const About = () => {
         className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-8">
+        <div className="relative">
+          {/* Hero Image */}
+          <div className="h-48 md:h-64 bg-gradient-to-r from-amber-500 to-amber-600 relative overflow-hidden rounded-t-2xl">
+            <img
+              src={partner.imageUrl}
+              alt={partner.name}
+              className="w-full h-full object-cover opacity-70"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src =
+                  "https://via.placeholder.com/800x400?text=" + partner.name;
+              }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 w-10 h-10 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-all"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 md:p-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-gradient-to-r from-amber-500 to-amber-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md">
+                {partner.name.charAt(0)}
+              </div>
+              <div>
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
+                  {partner.name}
+                </h2>
+                <p className="text-amber-600 text-sm mt-1">
+                  {partner.specialty}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                  <span>📖</span> Our Partnership Story
+                </h3>
+                <p className="text-gray-600 leading-relaxed">{partner.story}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-4">
+                <div className="bg-amber-50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xl">📅</span>
+                    <span className="text-sm text-gray-500">Established</span>
+                  </div>
+                  <p className="font-semibold text-gray-800">
+                    {partner.established}
+                  </p>
+                </div>
+                <div className="bg-amber-50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xl">📍</span>
+                    <span className="text-sm text-gray-500">Location</span>
+                  </div>
+                  <p className="font-semibold text-gray-800">
+                    {partner.location}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-5 mt-2">
+                <p className="text-amber-800 italic text-center">
+                  "Proud partners in creating unforgettable safari experiences"
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="w-full mt-6 bg-gradient-to-r from-amber-500 to-amber-600 text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all active:scale-95"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+
+  // Mission Modal Component
+  const MissionModal = ({ onClose }) => (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 20 }}
+        className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6 md:p-8">
           <div className="flex justify-between items-start mb-6">
-            <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl flex items-center justify-center">
+            <div className="w-14 h-14 md:w-16 md:h-16 bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl flex items-center justify-center">
               <svg
-                className="w-8 h-8 text-white"
+                className="w-7 h-7 md:w-8 md:h-8 text-white"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -452,19 +627,22 @@ const About = () => {
             </div>
             <button
               onClick={onClose}
-              className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200"
+              className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center active:bg-gray-200"
             >
               ✕
             </button>
           </div>
-          <h2 className="text-3xl font-bold text-gray-800 mb-4">Our Mission</h2>
-          <p className="text-gray-600 text-lg mb-6">
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-4">
+            Our Mission
+          </h2>
+          <p className="text-gray-600 text-base md:text-lg mb-6">
             To provide unforgettable safari experiences, promote Kenyan culture,
-            and offer world-class tour services.
+            and offer world-class tour services that exceed expectations while
+            preserving our natural heritage for future generations.
           </p>
-          <div className="bg-amber-50 rounded-xl p-6 border-l-4 border-amber-500">
-            <p className="text-amber-800 italic text-lg">
-              "Creating memories that last a lifetime"
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-5 md:p-6 border-l-4 border-amber-500">
+            <p className="text-amber-800 italic text-base md:text-lg">
+              "Creating memories that last a lifetime, one safari at a time"
             </p>
           </div>
         </div>
@@ -475,7 +653,7 @@ const About = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50 to-orange-50 overflow-x-hidden">
       {/* Hero Section */}
-      <header className="relative h-screen max-h-[800px] min-h-[600px] overflow-hidden">
+      <header className="relative h-[70vh] min-h-[500px] overflow-hidden">
         <div className="absolute inset-0">
           <img
             src="https://images.unsplash.com/photo-1516426122078-c23e76319801?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80"
@@ -491,80 +669,93 @@ const About = () => {
             transition={{ duration: 1 }}
             className="text-center text-white max-w-5xl"
           >
-            <span className="text-amber-400 text-lg font-semibold tracking-wider">
+            <span className="text-amber-400 text-base md:text-lg font-semibold tracking-wider">
               EST. 1993
             </span>
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
+            <h1 className="text-4xl md:text-7xl font-bold mb-4 md:mb-6 leading-tight">
               JozTembo
               <br />
               <span className="text-amber-300">Tours & Safari</span>
             </h1>
-            <p className="text-xl md:text-2xl mb-8 text-gray-200">
+            <p className="text-lg md:text-2xl mb-6 md:mb-8 text-gray-200">
               Malindi, Lamu Road
             </p>
-            <div className="bg-white/10 backdrop-blur-md inline-block px-8 py-4 rounded-full border border-white/20">
-              <p className="text-2xl md:text-3xl italic font-light">
+            <div className="bg-white/10 backdrop-blur-md inline-block px-6 py-3 md:px-8 md:py-4 rounded-full border border-white/20">
+              <p className="text-xl md:text-2xl italic font-light">
                 "Driven by passion, guided by experience"
               </p>
             </div>
-            <p className="text-lg text-amber-200 mt-4">
+            <p className="text-base md:text-lg text-amber-200 mt-4">
               In cooperation with Cimo Service
             </p>
           </motion.div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
         {/* Experience Banner */}
         <motion.section
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="mb-20"
+          className="mb-12 md:mb-20"
         >
-          <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-amber-800 rounded-3xl p-12 text-center text-white">
-            <span className="bg-white/20 px-6 py-2 rounded-full text-amber-100">
+          <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-amber-800 rounded-2xl md:rounded-3xl p-8 md:p-12 text-center text-white">
+            <span className="bg-white/20 px-4 py-1 md:px-6 md:py-2 rounded-full text-amber-100 text-sm md:text-base">
               ✦ 30+ Years of Excellence ✦
             </span>
-            <h2 className="text-4xl md:text-5xl font-bold mt-6 mb-4">
+            <h2 className="text-2xl md:text-5xl font-bold mt-4 md:mt-6 mb-3 md:mb-4">
               Crafting Unforgettable African Journeys
             </h2>
-            <p className="text-xl opacity-90">
+            <p className="text-base md:text-xl opacity-90">
               Trusted safari experiences across Kenya since 1993
             </p>
           </div>
         </motion.section>
 
         {/* Mission & Values */}
-        <section className="mb-20">
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="bg-white rounded-3xl p-8 shadow-xl">
-              <h2 className="text-3xl font-bold text-gray-800 mb-4">
+        <section className="mb-12 md:mb-20">
+          <div className="grid md:grid-cols-2 gap-6 md:gap-8">
+            <motion.div
+              whileHover={{ y: -5 }}
+              className="bg-white rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-lg cursor-pointer transition-all"
+              onClick={() => setSelectedMission(true)}
+            >
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-4">
                 Our Mission
               </h2>
-              <p className="text-gray-600 text-lg mb-6">
+              <p className="text-gray-600 text-base md:text-lg mb-6">
                 To provide unforgettable safari experiences, promote Kenyan
                 culture, and offer world-class tour services.
               </p>
-              <div className="bg-amber-50 rounded-xl p-6 border-l-4 border-amber-500">
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-5 md:p-6 border-l-4 border-amber-500">
                 <p className="text-amber-800 italic">
                   "Creating memories that last a lifetime"
                 </p>
               </div>
-            </div>
-            <div className="bg-white rounded-3xl p-8 shadow-xl">
-              <h2 className="text-3xl font-bold text-gray-800 mb-6">
+              <p className="text-amber-600 text-sm mt-4 text-center">
+                Click to learn more →
+              </p>
+            </motion.div>
+
+            <div className="bg-white rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-lg">
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6">
                 Core Values
               </h2>
               {coreValues.map((v, i) => (
                 <div
                   key={i}
-                  className="flex items-start space-x-4 p-3 hover:bg-amber-50 rounded-xl"
+                  className="flex items-start space-x-3 md:space-x-4 p-2 md:p-3 hover:bg-amber-50 rounded-xl transition-colors cursor-pointer"
+                  onClick={() => setSelectedValue(v)}
                 >
-                  <div className="w-2 h-2 bg-amber-500 rounded-full mt-2.5"></div>
+                  <div className="w-10 h-10 bg-gradient-to-r from-amber-500 to-amber-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                    {v.icon}
+                  </div>
                   <div>
-                    <h3 className="font-semibold text-gray-800">{v.name}</h3>
-                    <p className="text-gray-600">{v.desc}</p>
+                    <h3 className="font-semibold text-gray-800 text-sm md:text-base">
+                      {v.name}
+                    </h3>
+                    <p className="text-gray-600 text-xs md:text-sm">{v.desc}</p>
                   </div>
                 </div>
               ))}
@@ -572,28 +763,32 @@ const About = () => {
           </div>
         </section>
 
-        {/* Partners */}
-        <section className="mb-20">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold text-gray-800">
+        {/* Partners Section - Restored with Marquee */}
+        <section className="mb-12 md:mb-20">
+          <div className="text-center mb-8 md:mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-800">
               Trusted Partners
             </h2>
+            <p className="text-gray-500 mt-2">
+              Proudly collaborating with industry leaders
+            </p>
           </div>
-          <style>{`@keyframes marqueeScroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } } .marquee-container { position: relative; width: 100%; overflow: hidden; } .marquee-track { display: flex; gap: 1.5rem; width: max-content; animation: marqueeScroll 40s linear infinite; } .marquee-track:hover { animation-play-state: paused; } .partner-card { flex-shrink: 0; width: 16rem; cursor: pointer; }`}</style>
-          <div className="marquee-container py-8">
-            <div className="marquee-track py-4">
+
+          {/* Marquee Container */}
+          <div className="relative overflow-hidden py-4 md:py-6">
+            <div className="flex gap-4 md:gap-6 animate-marquee hover:animation-pause">
               {[...partners, ...partners].map((partner, idx) => (
                 <div
                   key={idx}
-                  className="partner-card hover:scale-105 transition-transform"
+                  className="flex-shrink-0 w-64 md:w-72 cursor-pointer group"
                   onClick={() => setSelectedPartner(partner)}
                 >
-                  <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-amber-100">
-                    <div className="h-40 bg-amber-50">
+                  <div className="bg-white rounded-xl md:rounded-2xl shadow-lg overflow-hidden transition-all duration-300 group-hover:shadow-2xl group-hover:-translate-y-1">
+                    <div className="h-32 md:h-40 bg-gradient-to-r from-amber-100 to-orange-100 relative overflow-hidden">
                       <img
                         src={partner.imageUrl}
                         alt={partner.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                         onError={(e) => {
                           e.target.onerror = null;
                           e.target.src =
@@ -601,11 +796,17 @@ const About = () => {
                             partner.name;
                         }}
                       />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                     </div>
-                    <div className="p-5">
-                      <h3 className="text-lg font-bold">{partner.name}</h3>
-                      <span className="text-sm text-amber-600">
-                        Click to learn more →
+                    <div className="p-4 md:p-5">
+                      <h3 className="text-base md:text-lg font-bold text-gray-800 group-hover:text-amber-600 transition-colors">
+                        {partner.name}
+                      </h3>
+                      <p className="text-xs md:text-sm text-gray-500 mt-1">
+                        {partner.specialty}
+                      </p>
+                      <span className="inline-block mt-3 text-xs md:text-sm text-amber-600 font-medium group-hover:translate-x-1 transition-transform">
+                        Learn more →
                       </span>
                     </div>
                   </div>
@@ -615,36 +816,85 @@ const About = () => {
           </div>
         </section>
 
+        {/* Add marquee animation CSS */}
+        <style jsx>{`
+          @keyframes marquee {
+            0% {
+              transform: translateX(0);
+            }
+            100% {
+              transform: translateX(-50%);
+            }
+          }
+          .animate-marquee {
+            animation: marquee 30s linear infinite;
+            width: max-content;
+            display: flex;
+          }
+          .animation-pause {
+            animation-play-state: paused;
+          }
+          @media (max-width: 768px) {
+            .animate-marquee {
+              animation: marquee 20s linear infinite;
+            }
+          }
+        `}</style>
+
         {/* ============ REVIEWS SECTION ============ */}
-        <section className="mb-20">
-          <div className="text-center mb-12">
-            <span className="text-amber-600 font-semibold tracking-wider text-sm">
-              TESTIMONIALS
-            </span>
-            <h2 className="text-4xl md:text-5xl font-bold text-gray-800 mt-2 mb-4">
-              What Our Travelers Say
-            </h2>
-            <div className="w-24 h-1 bg-gradient-to-r from-amber-400 to-amber-600 mx-auto rounded-full mb-6"></div>
-            <div className="flex justify-center gap-8 mt-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-amber-600">
-                  {reviewStats.average_rating}
+        <section className="mb-12 md:mb-20">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 gap-3 md:gap-6 mb-8 md:mb-12">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl md:rounded-2xl p-4 md:p-8 text-white shadow-lg"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-amber-100 text-xs md:text-sm uppercase tracking-wide">
+                    Rating
+                  </p>
+                  <p className="text-3xl md:text-6xl font-bold mt-1 md:mt-2">
+                    {reviewStats.average_rating}
+                  </p>
+                  <p className="text-amber-100 text-xs md:text-sm mt-1">
+                    out of 5
+                  </p>
                 </div>
-                <div className="text-sm text-gray-600">Average Rating</div>
+                <div className="text-3xl md:text-5xl">⭐</div>
               </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-amber-600">
-                  {reviewStats.total_reviews}
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-xl md:rounded-2xl p-4 md:p-8 text-white shadow-lg"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-amber-100 text-xs md:text-sm uppercase tracking-wide">
+                    Reviews
+                  </p>
+                  <p className="text-3xl md:text-6xl font-bold mt-1 md:mt-2">
+                    {reviewStats.total_reviews}
+                  </p>
+                  <p className="text-amber-100 text-xs md:text-sm mt-1">
+                    total
+                  </p>
                 </div>
-                <div className="text-sm text-gray-600">Total Reviews</div>
+                <div className="text-3xl md:text-5xl">📝</div>
               </div>
-            </div>
+            </motion.div>
           </div>
 
-          {/* Write Review Button & Auth Info */}
-          <div className="text-center mb-8">
+          {/* Write Review Button */}
+          <div className="text-center mb-6 md:mb-10">
             {!showReviewForm && (
-              <button
+              <motion.button
+                whileTap={{ scale: 0.97 }}
                 onClick={() => {
                   setShowReviewForm(true);
                   setEditingReview(null);
@@ -657,14 +907,17 @@ const About = () => {
                     package_used: "",
                   });
                 }}
-                className="bg-amber-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-amber-700 shadow-lg transition-all hover:shadow-xl"
+                className="w-full md:w-auto bg-gradient-to-r from-amber-500 to-amber-600 text-white px-6 md:px-10 py-3 md:py-4 rounded-full font-semibold active:scale-95 transition-all shadow-lg"
               >
                 ✍️ Write a Review
-              </button>
+              </motion.button>
             )}
             {user ? (
-              <p className="text-sm text-gray-500 mt-2">
-                Signed in as <span className="font-semibold">{user.name}</span>
+              <p className="text-xs md:text-sm text-gray-500 mt-3 md:mt-4">
+                ✨ Signed in as{" "}
+                <span className="font-semibold text-amber-600">
+                  {user.name}
+                </span>
                 {user.is_admin && (
                   <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
                     Admin
@@ -672,8 +925,8 @@ const About = () => {
                 )}
               </p>
             ) : (
-              <p className="text-sm text-gray-400 mt-2">
-                You can add your name when submitting a review ✨
+              <p className="text-xs md:text-sm text-gray-500 mt-3 md:mt-4">
+                🔒 Sign in to edit or delete reviews
               </p>
             )}
           </div>
@@ -682,24 +935,34 @@ const About = () => {
           <AnimatePresence>
             {showReviewForm && (
               <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="bg-white rounded-2xl p-6 shadow-xl mb-8 border border-amber-100"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="bg-white rounded-xl md:rounded-2xl p-5 md:p-8 shadow-xl mb-6 md:mb-10"
               >
-                <form onSubmit={handleSubmitReview} className="space-y-4">
+                <form
+                  onSubmit={handleSubmitReview}
+                  className="space-y-4 md:space-y-6"
+                >
                   <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold text-gray-800">
-                      {editingReview
-                        ? "✏️ Edit Your Review"
-                        : "📝 Share Your Experience"}
+                    <h3 className="text-xl md:text-2xl font-bold text-gray-800">
+                      {editingReview ? "✏️ Edit" : "✨ Share Your Journey"}
                     </h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowReviewForm(false);
+                        setEditingReview(null);
+                      }}
+                      className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gray-100 text-gray-500 active:bg-gray-200"
+                    >
+                      ✕
+                    </button>
                   </div>
 
-                  {/* ✅ NAME FIELD - Always visible for non-authenticated users */}
                   {!user && (
                     <div>
-                      <label className="block text-sm font-medium mb-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         Your Name{" "}
                         <span className="text-gray-400">(optional)</span>
                       </label>
@@ -712,26 +975,22 @@ const About = () => {
                             reviewer_name: e.target.value,
                           })
                         }
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                        placeholder="Enter your name (or leave blank for Anonymous)"
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl text-base focus:ring-2 focus:ring-amber-500"
+                        placeholder="Enter your name"
                       />
-                      <p className="text-xs text-gray-400 mt-1">
-                        If left blank, your review will appear as "Anonymous"
-                      </p>
                     </div>
                   )}
 
-                  {/* If user IS signed in, show their name (read-only) */}
                   {user && (
-                    <div className="bg-amber-50 p-3 rounded-lg">
-                      <label className="block text-sm font-medium mb-1 text-gray-600">
+                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-3 md:p-4 rounded-xl">
+                      <p className="text-xs md:text-sm text-gray-600 mb-2">
                         Posting as
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-r from-amber-500 to-amber-600 rounded-full flex items-center justify-center text-white font-bold shadow">
                           {user.name?.charAt(0) || "U"}
                         </div>
-                        <span className="font-semibold text-gray-800">
+                        <span className="font-semibold text-gray-800 text-sm md:text-base">
                           {user.name}
                         </span>
                       </div>
@@ -739,7 +998,7 @@ const About = () => {
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Rating
                     </label>
                     <StarRating
@@ -751,8 +1010,8 @@ const About = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Title *
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Title
                     </label>
                     <input
                       type="text"
@@ -760,15 +1019,15 @@ const About = () => {
                       onChange={(e) =>
                         setReviewForm({ ...reviewForm, title: e.target.value })
                       }
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-base focus:ring-2 focus:ring-amber-500"
                       placeholder="Summarize your experience"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Your Review *
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Your Story
                     </label>
                     <textarea
                       value={reviewForm.content}
@@ -778,16 +1037,16 @@ const About = () => {
                           content: e.target.value,
                         })
                       }
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-base focus:ring-2 focus:ring-amber-500"
                       rows={4}
-                      placeholder="Tell us about your experience..."
+                      placeholder="Tell us about your adventure..."
                       required
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         Visit Date
                       </label>
                       <input
@@ -799,12 +1058,12 @@ const About = () => {
                             visit_date: e.target.value,
                           })
                         }
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl text-base focus:ring-2 focus:ring-amber-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">
-                        Package Used
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Package
                       </label>
                       <input
                         type="text"
@@ -815,18 +1074,18 @@ const About = () => {
                             package_used: e.target.value,
                           })
                         }
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                        placeholder="e.g., Maasai Mara Safari"
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl text-base focus:ring-2 focus:ring-amber-500"
+                        placeholder="e.g., 5-Day Safari"
                       />
                     </div>
                   </div>
 
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 pt-2">
                     <button
                       type="submit"
-                      className="flex-1 bg-amber-600 text-white py-3 rounded-lg hover:bg-amber-700 font-semibold transition-colors"
+                      className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 text-white py-3 rounded-xl font-semibold active:scale-95 transition-all"
                     >
-                      {editingReview ? "✅ Update Review" : "📤 Submit Review"}
+                      {editingReview ? "Update" : "Publish"}
                     </button>
                     <button
                       type="button"
@@ -834,7 +1093,7 @@ const About = () => {
                         setShowReviewForm(false);
                         setEditingReview(null);
                       }}
-                      className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 transition-colors"
+                      className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-semibold active:bg-gray-200 transition-all"
                     >
                       Cancel
                     </button>
@@ -846,214 +1105,311 @@ const About = () => {
 
           {/* Reviews List */}
           {reviewsLoading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600 mx-auto"></div>
+            <div className="text-center py-12 md:py-16">
+              <div className="inline-block animate-spin rounded-full h-10 w-10 md:h-12 md:w-12 border-4 border-amber-500 border-t-transparent"></div>
+              <p className="mt-3 md:mt-4 text-gray-500 text-sm md:text-base">
+                Loading stories...
+              </p>
             </div>
           ) : reviews.length === 0 ? (
-            <div className="text-center py-8 text-gray-600">
-              <p className="text-xl">
-                No reviews yet. Be the first to share your experience!
+            <div className="text-center py-12 md:py-16 bg-white rounded-xl md:rounded-2xl shadow">
+              <p className="text-3xl md:text-4xl mb-3 md:mb-4">🌟</p>
+              <p className="text-base md:text-xl text-gray-600">
+                Be the first to share your experience!
               </p>
             </div>
           ) : (
-            <div className="space-y-6">
-              {reviews.map((review) => (
-                <motion.div
-                  key={review.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center text-white font-bold">
-                        {(
-                          review.user?.name ||
-                          review.reviewer_name ||
-                          "A"
-                        ).charAt(0)}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-800">
-                          {review.user?.name ||
-                            review.reviewer_name ||
-                            "Anonymous"}
-                          {review.user?.id === user?.id && (
-                            <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                              You
-                            </span>
-                          )}
+            <div className="space-y-4 md:space-y-6">
+              {reviews.map((review) => {
+                const isExpanded = expandedReviews[review.id];
+                const shouldTruncate = isMobile && review.content.length > 150;
+                const displayContent =
+                  shouldTruncate && !isExpanded
+                    ? review.content.substring(0, 150) + "..."
+                    : review.content;
+
+                return (
+                  <motion.div
+                    key={review.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    onMouseEnter={() => setHoveredReview(review.id)}
+                    onMouseLeave={() => setHoveredReview(null)}
+                    className="bg-white rounded-xl md:rounded-2xl shadow-md hover:shadow-xl transition-all duration-300"
+                  >
+                    <div className="p-4 md:p-6 border-b border-gray-100">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-r from-amber-500 to-amber-600 rounded-full flex items-center justify-center text-white font-bold text-base md:text-lg shadow flex-shrink-0">
+                            {(review.user?.name || review.reviewer_name || "A")
+                              .charAt(0)
+                              .toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-bold text-gray-800 text-sm md:text-base truncate">
+                              {review.user?.name ||
+                                review.reviewer_name ||
+                                "Anonymous"}
+                              {review.user?.id === user?.id && (
+                                <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                  You
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1 md:gap-2 mt-1">
+                              <StarRating
+                                rating={review.rating}
+                                interactive={false}
+                                size="text-xs md:text-sm"
+                              />
+                              <span className="text-xs text-gray-400">•</span>
+                              <span className="text-xs text-gray-500">
+                                {new Date(review.created_at).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  },
+                                )}
+                              </span>
+                              {review.is_edited && (
+                                <span className="text-xs text-gray-400 italic">
+                                  (edited)
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {new Date(review.created_at).toLocaleDateString(
-                            "en-US",
-                            {
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                            },
-                          )}
-                          {review.is_edited && (
-                            <span className="ml-2 italic">(edited)</span>
-                          )}
-                        </div>
+
+                        {canModifyReview(review) && (
+                          <div
+                            className={`flex gap-1 md:gap-2 flex-shrink-0 transition-opacity duration-300 ${hoveredReview === review.id ? "md:opacity-100" : "md:opacity-70"}`}
+                          >
+                            <button
+                              onClick={() => handleEditReview(review)}
+                              className="px-2 md:px-3 py-1 text-xs md:text-sm bg-blue-50 text-blue-600 rounded-lg active:bg-blue-100"
+                            >
+                              ✏️ Edit
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDeleteReview(
+                                  review.id,
+                                  review.user?.id,
+                                  review.title,
+                                )
+                              }
+                              className="px-2 md:px-3 py-1 text-xs md:text-sm bg-red-50 text-red-600 rounded-lg active:bg-red-100"
+                            >
+                              🗑️ Delete
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <StarRating
-                      rating={review.rating}
-                      interactive={false}
-                      size="text-lg"
-                    />
-                  </div>
 
-                  <h4 className="text-lg font-bold text-gray-800 mb-2">
-                    {review.title}
-                  </h4>
-                  <p className="text-gray-600 mb-3">{review.content}</p>
+                    <div className="p-4 md:p-6">
+                      <h4 className="text-base md:text-lg font-bold text-gray-800 mb-2">
+                        {review.title}
+                      </h4>
+                      <p className="text-gray-600 text-sm md:text-base leading-relaxed">
+                        {displayContent}
+                      </p>
 
-                  {review.package_used && (
-                    <div className="text-sm text-amber-600 mb-2">
-                      📦 Package: {review.package_used}
-                    </div>
-                  )}
-                  {review.visit_date && (
-                    <div className="text-sm text-gray-500 mb-3">
-                      📅 Visited:{" "}
-                      {new Date(review.visit_date).toLocaleDateString()}
-                    </div>
-                  )}
-
-                  {/* Action Buttons - Visible to review owner AND admins */}
-                  {canModifyReview(review) && (
-                    <div className="flex gap-2 mt-4 border-t pt-3">
-                      <button
-                        onClick={() => handleEditReview(review)}
-                        className="text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                      >
-                        ✏️ Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteReview(review.id)}
-                        className="text-sm text-red-600 hover:text-red-800 hover:underline font-medium"
-                      >
-                        🗑️ Delete
-                      </button>
-                      {user?.is_admin && (
-                        <span className="text-xs text-gray-400 self-center ml-2">
-                          Admin
-                        </span>
+                      {shouldTruncate && (
+                        <button
+                          onClick={() => toggleExpand(review.id)}
+                          className="text-amber-600 text-xs md:text-sm mt-2 font-medium active:text-amber-700"
+                        >
+                          {isExpanded ? "Show less" : "Read more"}
+                        </button>
                       )}
-                    </div>
-                  )}
 
-                  {/* Admin Reply Actions */}
-                  {user?.is_admin && (
-                    <div className="flex gap-2 mt-2 border-t pt-3">
-                      {replyingTo !== review.id ? (
+                      <div className="flex flex-wrap gap-2 mt-3 md:mt-4">
+                        {review.package_used && (
+                          <span className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-full">
+                            📦 {review.package_used}
+                          </span>
+                        )}
+                        {review.visit_date && (
+                          <span className="inline-flex items-center gap-1 text-xs bg-gray-50 text-gray-600 px-2 py-1 rounded-full">
+                            📅{" "}
+                            {new Date(review.visit_date).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+
+                      {user && replyingTo !== review.id && (
                         <button
                           onClick={() => setReplyingTo(review.id)}
-                          className="text-sm text-green-600 hover:text-green-800 hover:underline font-medium"
+                          className="mt-3 md:mt-4 text-xs md:text-sm text-green-600 font-medium active:text-green-700"
                         >
-                          💬 Reply as Admin
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setReplyingTo(null);
-                            setReplyContent("");
-                          }}
-                          className="text-sm text-gray-600 hover:underline"
-                        >
-                          Cancel Reply
+                          💬 Reply
                         </button>
                       )}
-                    </div>
-                  )}
 
-                  {/* Reply Form - Admin Only */}
-                  {replyingTo === review.id && user?.is_admin && (
-                    <div className="mt-4 pl-4 border-l-2 border-amber-300">
-                      <textarea
-                        value={replyContent}
-                        onChange={(e) => setReplyContent(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg mb-2 focus:ring-2 focus:ring-amber-500"
-                        rows={3}
-                        placeholder="Write your reply..."
-                      />
-                      <button
-                        onClick={() => handleSubmitReply(review.id)}
-                        className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 text-sm"
-                      >
-                        Submit Reply
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Replies */}
-                  {review.replies?.length > 0 && (
-                    <div className="mt-4 space-y-3 pl-4 border-l-2 border-gray-200">
-                      {review.replies.map((reply) => (
-                        <div
-                          key={reply.id}
-                          className="bg-gray-50 rounded-lg p-4"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                                A
-                              </div>
-                              <div>
-                                <div className="font-semibold text-sm text-gray-800">
-                                  {reply.user?.name || "Admin"}
-                                  <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                                    Admin
-                                  </span>
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {new Date(
-                                    reply.created_at,
-                                  ).toLocaleDateString()}
-                                </div>
-                              </div>
-                            </div>
-                            {user?.is_admin && (
-                              <button
-                                onClick={() => handleDeleteReply(reply.id)}
-                                className="text-xs text-red-600 hover:underline"
-                              >
-                                Delete
-                              </button>
-                            )}
+                      {user && replyingTo === review.id && (
+                        <div className="mt-3 md:mt-4">
+                          <textarea
+                            value={replyContent}
+                            onChange={(e) => setReplyContent(e.target.value)}
+                            className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-200 rounded-xl text-sm md:text-base focus:ring-2 focus:ring-amber-500"
+                            rows={3}
+                            placeholder={`Reply as ${user.name}...`}
+                          />
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              onClick={() => handleSubmitReply(review.id)}
+                              className="bg-gradient-to-r from-amber-500 to-amber-600 text-white px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm active:scale-95"
+                            >
+                              Submit
+                            </button>
+                            <button
+                              onClick={() => {
+                                setReplyingTo(null);
+                                setReplyContent("");
+                              }}
+                              className="bg-gray-100 text-gray-700 px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm active:bg-gray-200"
+                            >
+                              Cancel
+                            </button>
                           </div>
-                          <p className="text-gray-600 mt-2 text-sm">
-                            {reply.content}
-                          </p>
                         </div>
-                      ))}
+                      )}
+
+                      {review.replies?.length > 0 && (
+                        <div className="mt-4 md:mt-6 space-y-2 md:space-y-3">
+                          <div className="flex items-center gap-2">
+                            <div className="h-px flex-1 bg-gray-200"></div>
+                            <span className="text-xs text-gray-400 font-medium">
+                              {review.replies.length}{" "}
+                              {review.replies.length === 1
+                                ? "REPLY"
+                                : "REPLIES"}
+                            </span>
+                            <div className="h-px flex-1 bg-gray-200"></div>
+                          </div>
+                          {review.replies.map((reply) => (
+                            <div
+                              key={reply.id}
+                              className="bg-gray-50 rounded-lg p-3 md:p-4"
+                            >
+                              {editingReply === reply.id ? (
+                                <div>
+                                  <textarea
+                                    defaultValue={reply.content}
+                                    className="w-full px-3 md:px-4 py-2 border rounded-lg text-sm md:text-base mb-2"
+                                    rows={3}
+                                    id={`edit-reply-${reply.id}`}
+                                  />
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => {
+                                        const newContent =
+                                          document.getElementById(
+                                            `edit-reply-${reply.id}`,
+                                          ).value;
+                                        handleEditReply(reply.id, newContent);
+                                      }}
+                                      className="bg-amber-600 text-white px-3 py-1 rounded-lg text-xs md:text-sm"
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingReply(null)}
+                                      className="bg-gray-300 text-gray-700 px-3 py-1 rounded-lg text-xs md:text-sm"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      <div className="w-6 h-6 md:w-8 md:h-8 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center text-white text-xs md:text-sm font-bold flex-shrink-0">
+                                        {reply.user?.name?.charAt(0) || "U"}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-semibold text-xs md:text-sm text-gray-800 truncate">
+                                          {reply.user?.name || "User"}
+                                          {reply.user?.is_admin && (
+                                            <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
+                                              Admin
+                                            </span>
+                                          )}
+                                          {reply.user?.id === user?.id && (
+                                            <span className="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+                                              You
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="text-xs text-gray-400">
+                                          {new Date(
+                                            reply.created_at,
+                                          ).toLocaleDateString()}
+                                          {reply.is_edited && (
+                                            <span className="ml-1 italic">
+                                              (edited)
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {canModifyReply(reply) && (
+                                      <div className="flex gap-1 flex-shrink-0">
+                                        <button
+                                          onClick={() =>
+                                            setEditingReply(reply.id)
+                                          }
+                                          className="text-xs text-blue-600 px-1.5 py-0.5 rounded active:text-blue-700"
+                                        >
+                                          Edit
+                                        </button>
+                                        <button
+                                          onClick={() =>
+                                            handleDeleteReply(reply.id)
+                                          }
+                                          className="text-xs text-red-600 px-1.5 py-0.5 rounded active:text-red-700"
+                                        >
+                                          Delete
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <p className="text-gray-600 mt-2 text-xs md:text-sm pl-8">
+                                    {reply.content}
+                                  </p>
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </div>
           )}
 
-          {/* Pagination */}
           {reviewPagination.pages > 1 && (
-            <div className="flex justify-center gap-2 mt-8">
+            <div className="flex justify-center items-center gap-2 md:gap-3 mt-6 md:mt-12">
               <button
                 onClick={() => setReviewPage(reviewPage - 1)}
                 disabled={!reviewPagination.has_prev}
-                className="px-4 py-2 bg-white rounded-lg shadow disabled:opacity-50 hover:bg-gray-50"
+                className="px-4 md:px-5 py-2 bg-white border border-gray-200 rounded-lg text-sm md:text-base disabled:opacity-50 active:bg-gray-50"
               >
-                ← Previous
+                ← Prev
               </button>
-              <span className="px-4 py-2">
-                Page {reviewPage} of {reviewPagination.pages}
+              <span className="px-3 md:px-4 py-2 text-gray-600 text-sm md:text-base">
+                {reviewPage} / {reviewPagination.pages}
               </span>
               <button
                 onClick={() => setReviewPage(reviewPage + 1)}
                 disabled={!reviewPagination.has_next}
-                className="px-4 py-2 bg-white rounded-lg shadow disabled:opacity-50 hover:bg-gray-50"
+                className="px-4 md:px-5 py-2 bg-white border border-gray-200 rounded-lg text-sm md:text-base disabled:opacity-50 active:bg-gray-50"
               >
                 Next →
               </button>
@@ -1062,17 +1418,16 @@ const About = () => {
         </section>
 
         {/* CTA */}
-        <section className="text-center mb-20">
-          <div className="bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 rounded-3xl p-12 text-white shadow-2xl">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Ready for Your African Adventure?
+        <section className="text-center">
+          <div className="bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 rounded-2xl md:rounded-3xl p-8 md:p-12 text-white shadow-xl">
+            <h2 className="text-2xl md:text-4xl font-bold mb-3 md:mb-4">
+              Ready for Adventure?
             </h2>
-            <p className="text-lg mb-6">
-              Let our three decades of expertise guide you through the wild
-              heart of Kenya
+            <p className="text-sm md:text-lg mb-4 md:mb-6 px-2">
+              Let our expertise guide you through Kenya's wild heart
             </p>
-            <div className="inline-block bg-white/20 backdrop-blur-sm px-8 py-4 rounded-full">
-              <p className="text-xl italic font-light">
+            <div className="inline-block bg-white/20 backdrop-blur-sm px-5 py-2 md:px-8 md:py-4 rounded-full">
+              <p className="text-base md:text-xl italic font-light">
                 Driven by passion, guided by experience
               </p>
             </div>
@@ -1085,10 +1440,66 @@ const About = () => {
         {selectedMission && (
           <MissionModal onClose={() => setSelectedMission(false)} />
         )}
-        {selectedPartner && <div>Partner Modal (same as before)</div>}
+        {selectedPartner && (
+          <PartnerModal
+            partner={selectedPartner}
+            onClose={() => setSelectedPartner(null)}
+          />
+        )}
+        {selectedValue && (
+          <ValueModal
+            value={selectedValue}
+            onClose={() => setSelectedValue(null)}
+          />
+        )}
       </AnimatePresence>
     </div>
   );
 };
+
+// Value Modal Component
+const ValueModal = ({ value, onClose }) => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+    onClick={onClose}
+  >
+    <motion.div
+      initial={{ scale: 0.9, y: 20 }}
+      animate={{ scale: 1, y: 0 }}
+      exit={{ scale: 0.9, y: 20 }}
+      className="bg-white rounded-2xl max-w-md w-full shadow-2xl"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="p-6 md:p-8">
+        <div className="flex justify-between items-start mb-4">
+          <div className="w-14 h-14 md:w-16 md:h-16 bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl flex items-center justify-center">
+            {value.icon}
+          </div>
+          <button
+            onClick={onClose}
+            className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center active:bg-gray-200"
+          >
+            ✕
+          </button>
+        </div>
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-3">
+          {value.name}
+        </h2>
+        <p className="text-gray-600 text-base md:text-lg leading-relaxed">
+          {value.desc}
+        </p>
+        <button
+          onClick={onClose}
+          className="w-full mt-6 bg-gradient-to-r from-amber-500 to-amber-600 text-white py-3 rounded-xl font-semibold active:scale-95 transition-all"
+        >
+          Close
+        </button>
+      </div>
+    </motion.div>
+  </motion.div>
+);
 
 export default About;

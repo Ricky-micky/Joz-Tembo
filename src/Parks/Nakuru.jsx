@@ -30,6 +30,13 @@ const Nakuru = () => {
   // State for showing all packages (dropdown functionality)
   const [showAllPackages, setShowAllPackages] = useState(false);
 
+  // State for filtered packages (only those containing Nakuru)
+  const [filteredSafariRoutes, setFilteredSafariRoutes] = useState([]);
+
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
   const toggleCardExpand = (cardId) => {
     setExpandedCards((prev) => ({
       ...prev,
@@ -71,6 +78,9 @@ const Nakuru = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingRoute, setEditingRoute] = useState(null);
 
+  // All packages from backend
+  const [safariRoutes, setSafariRoutes] = useState([]);
+
   const [adminForm, setAdminForm] = useState({
     routeName: "",
     description: "",
@@ -88,338 +98,168 @@ const Nakuru = () => {
     ],
   });
 
-  // Helper function to check if a package is a Nakuru package
+  // Helper function to check if a package is a Nakuru package (starts with "Lake Nakuru")
   const isNakuruPackage = (route) => {
     if (!route || !route.name) return false;
     const name = route.name.toLowerCase();
-    return name.startsWith("lake nakuru") || name.includes("nakuru");
+    return name.startsWith("lake nakuru") || name.startsWith("nakuru");
   };
 
-  // DEFAULT safari routes - ONLY Nakuru packages
-  const defaultSafariRoutes = [
-    {
-      id: 1,
-      name: "Lake Nakuru → Lake Naivasha → Nairobi",
-      description:
-        "Bird watching paradise combined with boat rides and scenic landscapes in the Rift Valley. This is a longer description to test the show more functionality on the card.",
-      duration: "3-5 days recommended",
-      highlights: ["Flamingo Spectacle", "Rhino Sanctuary", "Boat Safari"],
-      fullItinerary:
-        "Day 1: Arrival at Lake Nakuru, flamingo viewing at the lake shore. Day 2: Full day Nakuru with rhino tracking and baboon cliff visit. Day 3: Travel to Lake Naivasha for boat ride to see hippos. Day 4: Hell's Gate cycling and walking safari. Day 5: Return to Nairobi with game drive en route.",
-      priceOptions: [
-        { people: 2, price: 320, currency: "euro" },
-        { people: 3, price: 280, currency: "euro" },
-        { people: 4, price: 240, currency: "euro" },
-        { people: 5, price: 220, currency: "euro" },
-        { people: 6, price: 200, currency: "euro" },
-        { people: 7, price: 190, currency: "euro" },
-        { people: 8, price: 180, currency: "euro" },
-      ],
-      priceRange: { min: 180, max: 320 },
-    },
-    {
-      id: 2,
-      name: "Lake Nakuru Birding Special",
-      description:
-        "Focused bird watching experience with expert guides and extended lake viewing. Perfect for ornithology enthusiasts.",
-      duration: "2-3 days recommended",
-      highlights: ["Bird Watching", "Flamingo Spectacle", "Lake Views"],
-      fullItinerary:
-        "Day 1: Arrival, afternoon flamingo viewing at lake shore with expert guide. Day 2: Full day bird watching across different habitats, baboon cliff visit. Day 3: Morning rhino sanctuary visit, final birding session, departure.",
-      priceOptions: [
-        { people: 2, price: 250, currency: "euro" },
-        { people: 3, price: 220, currency: "euro" },
-        { people: 4, price: 200, currency: "euro" },
-        { people: 5, price: 180, currency: "euro" },
-        { people: 6, price: 170, currency: "euro" },
-        { people: 7, price: 160, currency: "euro" },
-        { people: 8, price: 150, currency: "euro" },
-      ],
-      priceRange: { min: 150, max: 250 },
-    },
-    {
-      id: 3,
-      name: "Lake Nakuru Luxury Safari",
-      description:
-        "Premium experience with luxury accommodations, private bird watching, and exclusive rhino tracking with conservation experts.",
-      duration: "3-4 days recommended",
-      highlights: ["Luxury Lodge", "Private Guide", "Rhino Tracking"],
-      fullItinerary:
-        "Day 1: Luxury lodge check-in, welcome champagne. Day 2: Private bird watching tour with expert ornithologist. Day 3: Exclusive rhino tracking with conservation experts, sundowner. Day 4: Farewell breakfast, departure.",
-      priceOptions: [
-        { people: 2, price: 450, currency: "euro" },
-        { people: 3, price: 400, currency: "euro" },
-        { people: 4, price: 380, currency: "euro" },
-        { people: 5, price: 350, currency: "euro" },
-        { people: 6, price: 330, currency: "euro" },
-        { people: 7, price: 310, currency: "euro" },
-        { people: 8, price: 300, currency: "euro" },
-      ],
-      priceRange: { min: 300, max: 450 },
-    },
-    {
-      id: 4,
-      name: "Lake Nakuru → Hell's Gate → Lake Naivasha",
-      description:
-        "Adventure-packed safari combining bird watching with cycling and walking safaris in the Great Rift Valley.",
-      duration: "4-5 days recommended",
-      highlights: ["Cycling Safari", "Walking Safari", "Hot Springs"],
-      fullItinerary:
-        "Day 1: Arrival at Lake Nakuru, flamingo viewing. Day 2: Morning game drive, afternoon travel to Naivasha. Day 3: Hell's Gate cycling and walking safari. Day 4: Lake Naivasha boat safari, crescent island walk. Day 5: Return to Nairobi.",
-      priceOptions: [
-        { people: 2, price: 380, currency: "euro" },
-        { people: 3, price: 330, currency: "euro" },
-        { people: 4, price: 290, currency: "euro" },
-        { people: 5, price: 260, currency: "euro" },
-        { people: 6, price: 240, currency: "euro" },
-        { people: 7, price: 225, currency: "euro" },
-        { people: 8, price: 210, currency: "euro" },
-      ],
-      priceRange: { min: 210, max: 380 },
-    },
-    {
-      id: 5,
-      name: "Lake Nakuru Budget Camping Safari",
-      description:
-        "Affordable camping safari perfect for backpackers and budget travelers. Experience the flamingos without breaking the bank.",
-      duration: "2-3 days recommended",
-      highlights: ["Budget Friendly", "Camping Experience", "Great Birding"],
-      fullItinerary:
-        "Day 1: Arrival and camp setup, afternoon flamingo viewing. Day 2: Full day game drive with picnic lunch, rhino sanctuary visit. Day 3: Sunrise bird watching, then return to Nairobi.",
-      priceOptions: [
-        { people: 2, price: 180, currency: "euro" },
-        { people: 3, price: 150, currency: "euro" },
-        { people: 4, price: 130, currency: "euro" },
-        { people: 5, price: 115, currency: "euro" },
-        { people: 6, price: 105, currency: "euro" },
-        { people: 7, price: 95, currency: "euro" },
-        { people: 8, price: 85, currency: "euro" },
-      ],
-      priceRange: { min: 85, max: 180 },
-    },
-    {
-      id: 6,
-      name: "Lake Nakuru Photography Safari",
-      description:
-        "Specialized safari for photography enthusiasts with expert guides, prime positions for flamingo shots, and extended golden hour drives.",
-      duration: "3-4 days recommended",
-      highlights: [
-        "Expert Photography Guide",
-        "Golden Hour Drives",
-        "Flamingo Photography",
-      ],
-      fullItinerary:
-        "Day 1: Arrival and photography briefing, sunset flamingo shoot. Day 2-3: Early morning and late afternoon photography sessions. Day 4: Editing workshop and farewell dinner. Day 5: Departure.",
-      priceOptions: [
-        { people: 2, price: 550, currency: "euro" },
-        { people: 3, price: 480, currency: "euro" },
-        { people: 4, price: 420, currency: "euro" },
-        { people: 5, price: 380, currency: "euro" },
-        { people: 6, price: 350, currency: "euro" },
-      ],
-      priceRange: { min: 350, max: 550 },
-    },
-    {
-      id: 7,
-      name: "Lake Nakuru Family Safari",
-      description:
-        "Family-friendly safari with child-friendly accommodations, shorter game drives, and educational activities about birds and rhinos.",
-      duration: "2-3 days recommended",
-      highlights: ["Family Activities", "Child Friendly", "Educational"],
-      fullItinerary:
-        "Day 1: Arrival, family welcome, easy game drive with kids' activity booklet. Day 2: Morning bird watching with guide, afternoon swim at lodge. Day 3: Rhino sanctuary visit, farewell breakfast, departure.",
-      priceOptions: [
-        { people: 2, price: 300, currency: "euro" },
-        { people: 3, price: 260, currency: "euro" },
-        { people: 4, price: 230, currency: "euro" },
-        { people: 5, price: 210, currency: "euro" },
-        { people: 6, price: 195, currency: "euro" },
-        { people: 7, price: 180, currency: "euro" },
-        { people: 8, price: 170, currency: "euro" },
-      ],
-      priceRange: { min: 170, max: 300 },
-    },
-  ];
-
-  // Load safari routes from localStorage on initial load - STRICT NAKURU ONLY
-  const [safariRoutes, setSafariRoutes] = useState(() => {
-    try {
-      const savedRoutes = localStorage.getItem("nakuruPackages");
-      if (savedRoutes) {
-        const parsedRoutes = JSON.parse(savedRoutes);
-        // STRICT FILTER: Only packages that contain "nakuru" (case insensitive)
-        const nakuruOnly = parsedRoutes.filter(isNakuruPackage);
-        return nakuruOnly;
-      }
-      // Only save default routes that are Nakuru-specific
-      const nakuruDefaults = defaultSafariRoutes.filter(isNakuruPackage);
-      localStorage.setItem("nakuruPackages", JSON.stringify(nakuruDefaults));
-      return nakuruDefaults;
-    } catch (error) {
-      console.error("Error loading safari packages:", error);
-      return defaultSafariRoutes.filter(isNakuruPackage);
-    }
-  });
-
-  // Filtered packages that ONLY include Lake Nakuru (for display)
-  const filteredSafariRoutes = safariRoutes.filter(isNakuruPackage);
-
-  // Save safari routes to localStorage whenever they change - ONLY NAKURU
+  // Check authentication on mount and listen for auth changes
   useEffect(() => {
-    try {
-      const nakuruOnly = safariRoutes.filter(isNakuruPackage);
-      localStorage.setItem("nakuruPackages", JSON.stringify(nakuruOnly));
-    } catch (error) {
-      console.error("Error saving safari packages:", error);
-    }
-  }, [safariRoutes]);
-
-  // Function to save safari routes to localStorage - ONLY NAKURU
-  const saveSafariRoutesToStorage = (routes) => {
-    try {
-      const nakuruOnly = routes.filter(isNakuruPackage);
-      localStorage.setItem("nakuruPackages", JSON.stringify(nakuruOnly));
-    } catch (error) {
-      console.error("Error saving to localStorage:", error);
-      Swal.fire({
-        title: "Storage Error",
-        text: "Could not save safari packages. Please try again.",
-        icon: "error",
-        confirmButtonColor: "#2563eb",
-      });
-    }
-  };
-
-  // Check backend connection on mount
-  useEffect(() => {
-    const checkBackendConnection = async () => {
-      try {
-        const packagesResponse = await fetch(
-          "http://localhost:5000/api/safari-cards",
-        );
-        if (packagesResponse.ok) {
-          const packagesData = await packagesResponse.json();
-          // STRICT FILTER: Only Lake Nakuru packages
-          const filteredPackages =
-            packagesData.success && packagesData.data
-              ? packagesData.data.filter(isNakuruPackage)
-              : [];
-
-          setBackendStatus({
-            connected: true,
-            packageCount: filteredPackages.length,
-          });
-
-          if (filteredPackages.length > 0) {
-            loadPackagesFromBackend(filteredPackages);
-          }
-        }
-      } catch (error) {
-        console.log("Backend not connected, using local storage only");
-        setBackendStatus({
-          connected: false,
-          packageCount: 0,
-        });
+    const checkAuth = () => {
+      const token = localStorage.getItem("access_token");
+      const user = localStorage.getItem("user");
+      if (token && user) {
+        setIsAuthenticated(true);
+        setCurrentUser(JSON.parse(user));
+      } else {
+        setIsAuthenticated(false);
+        setCurrentUser(null);
       }
     };
 
-    checkBackendConnection();
+    checkAuth();
+
+    // Listen for auth changes from footer
+    const handleAuthChange = () => {
+      checkAuth();
+    };
+
+    window.addEventListener("authChange", handleAuthChange);
+    window.addEventListener("storage", handleAuthChange);
+
+    return () => {
+      window.removeEventListener("authChange", handleAuthChange);
+      window.removeEventListener("storage", handleAuthChange);
+    };
   }, []);
 
-  // Load packages from backend and merge with local - STRICT NAKURU ONLY
-  const loadPackagesFromBackend = (backendPackages) => {
+  // Fetch packages from backend on mount
+  const fetchPackagesFromBackend = async () => {
+    setBackendLoading(true);
     try {
-      // Filter backend packages to only Nakuru
-      const nakuruBackendPackages = backendPackages.filter(isNakuruPackage);
+      const response = await fetch("http://localhost:5000/api/safari-cards");
+      if (response.ok) {
+        const packagesData = await response.json();
+        if (packagesData.success && packagesData.data) {
+          // Filter only packages that start with Lake Nakuru
+          const nakuruPackages = packagesData.data.filter(isNakuruPackage);
 
-      const convertedPackages = nakuruBackendPackages.map((pkg) => {
-        const hasPrices = pkg.prices && pkg.prices.length > 0;
-        const basePrice = hasPrices ? pkg.prices[0] : null;
+          const convertedPackages = nakuruPackages.map((pkg) => {
+            const hasPrices = pkg.prices && pkg.prices.length > 0;
+            const basePrice = hasPrices ? pkg.prices[0] : null;
 
-        return {
-          id: `backend_${pkg.id}`,
-          backendId: pkg.id,
-          name: pkg.name,
-          description: pkg.description || "",
-          duration: `${pkg.total_days || 3}-${(pkg.total_days || 3) + 2} days recommended`,
-          highlights: pkg.highlights || [],
-          fullItinerary: pkg.description || "",
-          priceOptions:
-            hasPrices && basePrice.prices
-              ? [
-                  {
-                    people: 2,
-                    price: basePrice.prices.pax_2_price || 320,
-                    currency: "euro",
-                  },
-                  {
-                    people: 4,
-                    price: basePrice.prices.pax_4_price || 240,
-                    currency: "euro",
-                  },
-                  {
-                    people: 6,
-                    price: basePrice.prices.pax_6_price || 200,
-                    currency: "euro",
-                  },
-                  {
-                    people: 8,
-                    price: basePrice.prices.pax_8_price || 180,
-                    currency: "euro",
-                  },
-                ]
-              : defaultSafariRoutes[0].priceOptions,
-          priceRange: {
-            min:
-              hasPrices && basePrice.prices
-                ? Math.min(
-                    basePrice.prices.pax_2_price || 320,
-                    basePrice.prices.pax_4_price || 240,
-                    basePrice.prices.pax_6_price || 200,
-                    basePrice.prices.pax_8_price || 180,
-                  )
-                : 100,
-            max:
-              hasPrices && basePrice.prices
-                ? Math.max(
-                    basePrice.prices.pax_2_price || 320,
-                    basePrice.prices.pax_4_price || 240,
-                    basePrice.prices.pax_6_price || 200,
-                    basePrice.prices.pax_8_price || 180,
-                  )
-                : 500,
-          },
-        };
-      });
+            return {
+              id: pkg.id,
+              backendId: pkg.id,
+              name: pkg.name,
+              description: pkg.description || "",
+              duration: `${pkg.total_days || 3}-${(pkg.total_days || 3) + 2} days recommended`,
+              highlights: pkg.highlights || [],
+              fullItinerary: pkg.description || "",
+              priceOptions:
+                hasPrices && basePrice.prices
+                  ? [
+                      {
+                        people: 2,
+                        price: basePrice.prices.pax_2_price || 320,
+                        currency: "euro",
+                      },
+                      {
+                        people: 4,
+                        price: basePrice.prices.pax_4_price || 240,
+                        currency: "euro",
+                      },
+                      {
+                        people: 6,
+                        price: basePrice.prices.pax_6_price || 200,
+                        currency: "euro",
+                      },
+                      {
+                        people: 8,
+                        price: basePrice.prices.pax_8_price || 180,
+                        currency: "euro",
+                      },
+                    ]
+                  : [
+                      { people: 2, price: 320, currency: "euro" },
+                      { people: 4, price: 240, currency: "euro" },
+                      { people: 6, price: 200, currency: "euro" },
+                      { people: 8, price: 180, currency: "euro" },
+                    ],
+              priceRange: {
+                min:
+                  hasPrices && basePrice.prices
+                    ? Math.min(
+                        basePrice.prices.pax_2_price || 320,
+                        basePrice.prices.pax_4_price || 240,
+                        basePrice.prices.pax_6_price || 200,
+                        basePrice.prices.pax_8_price || 180,
+                      )
+                    : 100,
+                max:
+                  hasPrices && basePrice.prices
+                    ? Math.max(
+                        basePrice.prices.pax_2_price || 320,
+                        basePrice.prices.pax_4_price || 240,
+                        basePrice.prices.pax_6_price || 200,
+                        basePrice.prices.pax_8_price || 180,
+                      )
+                    : 500,
+              },
+            };
+          });
 
-      // ONLY keep Nakuru local packages and add filtered backend packages
-      const localNakuruPackages = safariRoutes.filter(
-        (pkg) => !pkg.backendId && isNakuruPackage(pkg),
-      );
-      const allPackages = [...localNakuruPackages];
-
-      convertedPackages.forEach((backendPkg) => {
-        // Only add if it's a Nakuru package (double check)
-        if (isNakuruPackage(backendPkg)) {
-          const exists = allPackages.some(
-            (localPkg) =>
-              localPkg.backendId === backendPkg.backendId ||
-              localPkg.name === backendPkg.name,
-          );
-          if (!exists) {
-            allPackages.push(backendPkg);
-          }
+          setSafariRoutes(convertedPackages);
+          setBackendStatus({
+            connected: true,
+            packageCount: convertedPackages.length,
+          });
+        } else {
+          setSafariRoutes([]);
+          setBackendStatus({
+            connected: true,
+            packageCount: 0,
+          });
         }
-      });
-
-      setSafariRoutes(allPackages);
-      saveSafariRoutesToStorage(allPackages);
+      } else {
+        throw new Error("Failed to fetch packages");
+      }
     } catch (error) {
-      console.error("Error loading packages from backend:", error);
+      console.error("Error fetching from backend:", error);
+      setBackendStatus({
+        connected: false,
+        packageCount: 0,
+      });
+      setSafariRoutes([]);
+      // Only show error to admins
+      if (isAuthenticated) {
+        Swal.fire({
+          title: "Backend Connection Failed",
+          text: "Could not connect to the database. Please ensure the backend server is running on port 5000.",
+          icon: "error",
+          confirmButtonColor: "#2563eb",
+        });
+      }
+    } finally {
+      setBackendLoading(false);
     }
   };
 
-  // Check for existing lodge selection from localStorage on component mount
+  // Filter packages to only show those starting with "Lake Nakuru"
+  useEffect(() => {
+    const filtered = safariRoutes.filter((route) => isNakuruPackage(route));
+    setFilteredSafariRoutes(filtered);
+    setShowAllPackages(false);
+  }, [safariRoutes]);
+
+  // Check backend connection on mount
+  useEffect(() => {
+    fetchPackagesFromBackend();
+  }, []);
+
+  // Check for existing lodge selection from localStorage (only for booking data)
   useEffect(() => {
     const checkExistingSelection = () => {
       try {
@@ -752,7 +592,10 @@ const Nakuru = () => {
   const handleEditPackage = (route) => {
     setEditingRoute(route);
     setAdminForm({
-      routeName: route.name.replace("Lake Nakuru → ", "").trim(),
+      routeName: route.name
+        .replace("Lake Nakuru → ", "")
+        .replace("Lake Nakuru ", "")
+        .trim(),
       description: route.description,
       duration: route.duration,
       highlights: route.highlights.join(", "),
@@ -766,15 +609,17 @@ const Nakuru = () => {
   const handleUpdatePackage = async (e) => {
     e.preventDefault();
 
-    const routeName = adminForm.routeName.includes("Lake Nakuru")
+    const routeName = adminForm.routeName
+      .toLowerCase()
+      .startsWith("lake nakuru")
       ? adminForm.routeName
       : `Lake Nakuru → ${adminForm.routeName}`;
 
-    // VALIDATE: Ensure the package name contains "Nakuru"
-    if (!routeName.toLowerCase().includes("nakuru")) {
+    // VALIDATE: Ensure the package name starts with "Lake Nakuru"
+    if (!routeName.toLowerCase().startsWith("lake nakuru")) {
       Swal.fire({
         title: "Invalid Package Name",
-        text: "All packages on this page must include 'Nakuru' in the name. Please ensure your package is for Lake Nakuru.",
+        text: "All packages on this page must start with 'Lake Nakuru'. Please ensure your package is for Lake Nakuru National Park.",
         icon: "error",
         confirmButtonColor: "#2563eb",
       });
@@ -791,52 +636,86 @@ const Nakuru = () => {
       .filter((h) => h.length > 0);
 
     const updatedRoute = {
-      ...editingRoute,
+      id: editingRoute.backendId || editingRoute.id,
       name: routeName,
       description: adminForm.description,
       duration: adminForm.duration,
       highlights: highlightsArray,
-      fullItinerary: adminForm.itinerary,
-      priceOptions: adminForm.priceOptions,
-      priceRange: { min: minPrice, max: maxPrice },
+      total_days: parseInt(adminForm.duration) || 3,
+      prices: [
+        {
+          people: 2,
+          prices: {
+            pax_2_price:
+              adminForm.priceOptions.find((o) => o.people === 2)?.price || 320,
+            pax_4_price:
+              adminForm.priceOptions.find((o) => o.people === 4)?.price || 240,
+            pax_6_price:
+              adminForm.priceOptions.find((o) => o.people === 6)?.price || 200,
+            pax_8_price:
+              adminForm.priceOptions.find((o) => o.people === 8)?.price || 180,
+          },
+        },
+      ],
     };
 
-    const updatedRoutes = safariRoutes.map((route) =>
-      route.id === editingRoute.id ? updatedRoute : route,
-    );
+    try {
+      setIsLoading(true);
 
-    setSafariRoutes(updatedRoutes);
-    saveSafariRoutesToStorage(updatedRoutes);
+      const response = await fetch(
+        `http://localhost:5000/api/safari-cards/${editingRoute.backendId || editingRoute.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          },
+          body: JSON.stringify(updatedRoute),
+        },
+      );
 
-    if (selectedRoute && selectedRoute.id === editingRoute.id) {
-      setSelectedRoute(updatedRoute);
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        Swal.fire({
+          title: "✅ Package Updated!",
+          html: `
+            <div class="text-left">
+              <p><strong>${updatedRoute.name}</strong> has been updated successfully in the database.</p>
+              <div class="mt-4 p-3 bg-gray-50 rounded">
+                <p class="text-sm"><strong>Price Range:</strong> €${minPrice} - €${maxPrice}</p>
+                <p class="text-sm"><strong>Duration:</strong> ${updatedRoute.duration}</p>
+              </div>
+            </div>
+          `,
+          icon: "success",
+          confirmButtonColor: "#2563eb",
+        });
+
+        // Refresh packages from backend
+        await fetchPackagesFromBackend();
+      } else {
+        throw new Error(result.error || "Failed to update package");
+      }
+    } catch (error) {
+      console.error("Error updating package:", error);
+      Swal.fire({
+        title: "Update Failed",
+        text: "Could not update the package in the database. Please try again.",
+        icon: "error",
+        confirmButtonColor: "#2563eb",
+      });
+    } finally {
+      setIsLoading(false);
+      setShowEditModal(false);
+      setEditingRoute(null);
     }
-
-    Swal.fire({
-      title: "✅ Package Updated!",
-      html: `
-        <div class="text-left">
-          <p><strong>${updatedRoute.name}</strong> has been updated successfully.</p>
-          <div class="mt-4 p-3 bg-gray-50 rounded">
-            <p class="text-sm"><strong>Price Range:</strong> €${minPrice} - €${maxPrice}</p>
-            <p class="text-sm"><strong>Duration:</strong> ${updatedRoute.duration}</p>
-          </div>
-        </div>
-      `,
-      icon: "success",
-      confirmButtonColor: "#2563eb",
-    });
-
-    setShowEditModal(false);
-    setEditingRoute(null);
   };
 
   // Save package to backend
   const savePackageToBackend = async (packageData) => {
     try {
-      setIsLoading(true);
-
-      const routeName = packageData.name.includes("Lake Nakuru")
+      const routeName = packageData.name.toLowerCase().startsWith("lake nakuru")
         ? packageData.name
         : `Lake Nakuru → ${packageData.name}`;
 
@@ -845,17 +724,34 @@ const Nakuru = () => {
         description: packageData.description,
         duration: packageData.duration || "3-5 days recommended",
         itinerary: packageData.fullItinerary || "",
-        priceOptions: packageData.priceOptions.map((option) => ({
-          people: option.people,
-          price: option.price,
-          currency: option.currency || "euro",
-        })),
+        total_days: parseInt(packageData.duration) || 3,
+        highlights: packageData.highlights,
+        prices: [
+          {
+            people: 2,
+            prices: {
+              pax_2_price:
+                packageData.priceOptions.find((o) => o.people === 2)?.price ||
+                320,
+              pax_4_price:
+                packageData.priceOptions.find((o) => o.people === 4)?.price ||
+                240,
+              pax_6_price:
+                packageData.priceOptions.find((o) => o.people === 6)?.price ||
+                200,
+              pax_8_price:
+                packageData.priceOptions.find((o) => o.people === 8)?.price ||
+                180,
+            },
+          },
+        ],
       };
 
       const response = await fetch("http://localhost:5000/api/safari-cards", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
         },
         body: JSON.stringify(backendPackage),
       });
@@ -863,147 +759,13 @@ const Nakuru = () => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        Swal.fire({
-          title: "✅ Success!",
-          text: "Safari package saved to database successfully",
-          icon: "success",
-          confirmButtonColor: "#2563eb",
-        });
-
-        return {
-          success: true,
-          data: result,
-          backendId: result.package_id,
-        };
+        return { success: true, data: result, backendId: result.package_id };
       } else {
         throw new Error(result.error || "Failed to save package");
       }
     } catch (error) {
       console.error("Error saving to backend:", error);
-      Swal.fire({
-        title: "Backend Error",
-        text: "Could not save to database. Saved locally instead.",
-        icon: "warning",
-        confirmButtonColor: "#2563eb",
-      });
       return { success: false, error: error.message };
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Sync local packages with backend
-  const syncWithBackend = async () => {
-    setBackendLoading(true);
-    Swal.fire({
-      title: "Syncing...",
-      text: "Please wait while we sync with the database",
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      },
-    });
-
-    try {
-      const response = await fetch("http://localhost:5000/api/safari-cards");
-      if (response.ok) {
-        const packagesData = await response.json();
-
-        if (packagesData.success) {
-          // STRICT FILTER: Only Lake Nakuru packages
-          const filteredPackages = packagesData.data.filter(isNakuruPackage);
-
-          const backendPackages = filteredPackages.map((pkg) => {
-            const hasPrices = pkg.prices && pkg.prices.length > 0;
-            const basePrice = hasPrices ? pkg.prices[0] : null;
-
-            return {
-              id: `backend_${pkg.id}`,
-              backendId: pkg.id,
-              name: pkg.name,
-              description: pkg.description || "",
-              duration: `${pkg.total_days || 3}-${(pkg.total_days || 3) + 2} days recommended`,
-              highlights: pkg.highlights || [],
-              fullItinerary: pkg.description || "",
-              priceOptions:
-                hasPrices && basePrice.prices
-                  ? [
-                      {
-                        people: 2,
-                        price: basePrice.prices.pax_2_price || 320,
-                        currency: "euro",
-                      },
-                      {
-                        people: 4,
-                        price: basePrice.prices.pax_4_price || 240,
-                        currency: "euro",
-                      },
-                      {
-                        people: 6,
-                        price: basePrice.prices.pax_6_price || 200,
-                        currency: "euro",
-                      },
-                      {
-                        people: 8,
-                        price: basePrice.prices.pax_8_price || 180,
-                        currency: "euro",
-                      },
-                    ]
-                  : defaultSafariRoutes[0].priceOptions,
-              priceRange: {
-                min:
-                  hasPrices && basePrice.prices
-                    ? Math.min(
-                        basePrice.prices.pax_2_price || 320,
-                        basePrice.prices.pax_4_price || 240,
-                        basePrice.prices.pax_6_price || 200,
-                        basePrice.prices.pax_8_price || 180,
-                      )
-                    : 100,
-                max:
-                  hasPrices && basePrice.prices
-                    ? Math.max(
-                        basePrice.prices.pax_2_price || 320,
-                        basePrice.prices.pax_4_price || 240,
-                        basePrice.prices.pax_6_price || 200,
-                        basePrice.prices.pax_8_price || 180,
-                      )
-                    : 500,
-              },
-            };
-          });
-
-          // ONLY keep Nakuru local packages
-          const localPackages = safariRoutes.filter(
-            (pkg) => !pkg.backendId && isNakuruPackage(pkg),
-          );
-          const allPackages = [...localPackages, ...backendPackages];
-
-          setSafariRoutes(allPackages);
-          saveSafariRoutesToStorage(allPackages);
-
-          setBackendStatus((prev) => ({
-            ...prev,
-            packageCount: backendPackages.length,
-          }));
-
-          Swal.fire({
-            title: "✅ Sync Complete!",
-            text: `Loaded ${backendPackages.length} Lake Nakuru packages from backend`,
-            icon: "success",
-            confirmButtonColor: "#2563eb",
-          });
-        }
-      }
-    } catch (error) {
-      Swal.fire({
-        title: "Sync Failed",
-        text: "Could not sync with backend. Please check your connection.",
-        icon: "error",
-        confirmButtonColor: "#2563eb",
-      });
-    } finally {
-      setBackendLoading(false);
     }
   };
 
@@ -1094,15 +856,17 @@ const Nakuru = () => {
     e.preventDefault();
 
     // ENSURE package name starts with "Lake Nakuru → "
-    const routeName = adminForm.routeName.includes("Lake Nakuru")
+    const routeName = adminForm.routeName
+      .toLowerCase()
+      .startsWith("lake nakuru")
       ? adminForm.routeName
       : `Lake Nakuru → ${adminForm.routeName}`;
 
-    // VALIDATE: Ensure the package name contains "Nakuru"
-    if (!routeName.toLowerCase().includes("nakuru")) {
+    // VALIDATE: Ensure the package name starts with "Lake Nakuru"
+    if (!routeName.toLowerCase().startsWith("lake nakuru")) {
       Swal.fire({
         title: "Invalid Package Name",
-        text: "All packages on this page must include 'Nakuru' in the name. This page only accepts Lake Nakuru safari packages.",
+        text: "All packages on this page must start with 'Lake Nakuru'. This page only accepts Lake Nakuru National Park safari packages.",
         icon: "error",
         confirmButtonColor: "#2563eb",
       });
@@ -1119,7 +883,6 @@ const Nakuru = () => {
       .filter((h) => h.length > 0);
 
     const newRoute = {
-      id: Date.now(),
       name: routeName,
       description: adminForm.description,
       duration: adminForm.duration,
@@ -1129,84 +892,111 @@ const Nakuru = () => {
       priceRange: { min: minPrice, max: maxPrice },
     };
 
-    let backendResult = null;
-    if (backendStatus.connected) {
-      backendResult = await savePackageToBackend(newRoute);
+    const backendResult = await savePackageToBackend(newRoute);
 
-      if (backendResult.success && backendResult.backendId) {
-        newRoute.backendId = backendResult.backendId;
-        newRoute.id = `backend_${backendResult.backendId}`;
-      }
-    }
-
-    const updatedRoutes = [...safariRoutes, newRoute];
-    setSafariRoutes(updatedRoutes);
-    saveSafariRoutesToStorage(updatedRoutes);
-
-    Swal.fire({
-      title: "✅ Package Created!",
-      html: `
-        <div class="text-left">
-          <p><strong>${newRoute.name}</strong> has been created successfully.</p>
-          <div class="mt-4 p-3 bg-gray-50 rounded">
-            <p class="text-sm"><strong>Status:</strong> ${backendStatus.connected && backendResult?.success ? "Saved to Database ✓" : "Saved Locally Only"}</p>
-            <p class="text-sm"><strong>Price Range:</strong> €${minPrice} - €${maxPrice}</p>
-            <p class="text-sm"><strong>Duration:</strong> ${newRoute.duration}</p>
+    if (backendResult.success) {
+      Swal.fire({
+        title: "✅ Package Created!",
+        html: `
+          <div class="text-left">
+            <p><strong>${newRoute.name}</strong> has been created successfully in the database.</p>
+            <div class="mt-4 p-3 bg-gray-50 rounded">
+              <p class="text-sm"><strong>Price Range:</strong> €${minPrice} - €${maxPrice}</p>
+              <p class="text-sm"><strong>Duration:</strong> ${newRoute.duration}</p>
+            </div>
           </div>
-        </div>
-      `,
-      icon: "success",
-      confirmButtonColor: "#2563eb",
-    });
+        `,
+        icon: "success",
+        confirmButtonColor: "#2563eb",
+      });
 
-    setAdminForm({
-      routeName: "",
-      description: "",
-      duration: "3-5 days recommended",
-      highlights: "",
-      itinerary: "",
-      priceOptions: [
-        { people: 2, price: 320, currency: "euro" },
-        { people: 3, price: 280, currency: "euro" },
-        { people: 4, price: 240, currency: "euro" },
-        { people: 5, price: 220, currency: "euro" },
-        { people: 6, price: 200, currency: "euro" },
-        { people: 7, price: 190, currency: "euro" },
-        { people: 8, price: 180, currency: "euro" },
-      ],
-    });
-    setShowAdminForm(false);
+      // Refresh packages from backend
+      await fetchPackagesFromBackend();
+
+      setAdminForm({
+        routeName: "",
+        description: "",
+        duration: "3-5 days recommended",
+        highlights: "",
+        itinerary: "",
+        priceOptions: [
+          { people: 2, price: 320, currency: "euro" },
+          { people: 3, price: 280, currency: "euro" },
+          { people: 4, price: 240, currency: "euro" },
+          { people: 5, price: 220, currency: "euro" },
+          { people: 6, price: 200, currency: "euro" },
+          { people: 7, price: 190, currency: "euro" },
+          { people: 8, price: 180, currency: "euro" },
+        ],
+      });
+      setShowAdminForm(false);
+    } else {
+      Swal.fire({
+        title: "Creation Failed",
+        text: "Could not save the package to the database. Please try again.",
+        icon: "error",
+        confirmButtonColor: "#2563eb",
+      });
+    }
   };
 
   // Delete safari package
-  const handleDeletePackage = (routeId) => {
+  const handleDeletePackage = (routeId, backendId) => {
     Swal.fire({
       title: "Delete Safari Package?",
-      text: "Are you sure you want to permanently delete this safari package? This action cannot be undone.",
+      text: "Are you sure you want to permanently delete this safari package from the database? This action cannot be undone.",
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#2563eb",
       cancelButtonColor: "#6b7280",
       confirmButtonText: "Yes, delete permanently!",
       cancelButtonText: "Cancel",
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed) {
-        const updatedRoutes = safariRoutes.filter(
-          (route) => route.id !== routeId,
-        );
-        setSafariRoutes(updatedRoutes);
-        saveSafariRoutesToStorage(updatedRoutes);
+        try {
+          const idToDelete = backendId || routeId;
+          const response = await fetch(
+            `http://localhost:5000/api/safari-cards/${idToDelete}`,
+            {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+              },
+            },
+          );
 
-        if (selectedRoute && selectedRoute.id === routeId) {
-          setSelectedRoute(null);
+          const resultData = await response.json();
+
+          if (response.ok && resultData.success) {
+            Swal.fire({
+              title: "Deleted Permanently!",
+              text: "The safari package has been permanently deleted from the database.",
+              icon: "success",
+              confirmButtonColor: "#2563eb",
+            });
+
+            if (
+              selectedRoute &&
+              (selectedRoute.backendId === idToDelete ||
+                selectedRoute.id === idToDelete)
+            ) {
+              setSelectedRoute(null);
+            }
+
+            // Refresh packages from backend
+            await fetchPackagesFromBackend();
+          } else {
+            throw new Error(resultData.error || "Failed to delete package");
+          }
+        } catch (error) {
+          console.error("Error deleting package:", error);
+          Swal.fire({
+            title: "Delete Failed",
+            text: "Could not delete the package from the database. Please try again.",
+            icon: "error",
+            confirmButtonColor: "#2563eb",
+          });
         }
-
-        Swal.fire({
-          title: "Deleted Permanently!",
-          text: "The safari package has been permanently deleted and removed from storage.",
-          icon: "success",
-          confirmButtonColor: "#2563eb",
-        });
       }
     });
   };
@@ -2102,97 +1892,101 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                     : "Select a lodge first to view available packages"}
                 </p>
                 <p className="text-sm text-blue-600 mt-1">
-                  📍 Only showing packages starting from Lake Nakuru
+                  📍 Showing {filteredSafariRoutes.length} packages starting
+                  with "Lake Nakuru"
                 </p>
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
-                {backendStatus.connected && (
+                <button
+                  onClick={fetchPackagesFromBackend}
+                  disabled={backendLoading}
+                  className={`${backendLoading ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"} text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    {backendLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-4 h-4 sm:w-5 sm:h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                          />
+                        </svg>
+                        Refresh
+                      </>
+                    )}
+                  </div>
+                </button>
+                {isAuthenticated && (
                   <button
-                    onClick={syncWithBackend}
-                    disabled={backendLoading}
-                    className={`${backendLoading ? "bg-gray-400" : "bg-green-600 hover:bg-green-700"} text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none`}
+                    onClick={() => setShowAdminForm(true)}
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none"
                   >
                     <div className="flex items-center justify-center gap-2">
-                      {backendLoading ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Syncing...
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            className="w-4 h-4 sm:w-5 sm:h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                            />
-                          </svg>
-                          Sync
-                        </>
-                      )}
+                      <svg
+                        className="w-4 h-4 sm:w-5 sm:h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                        />
+                      </svg>
+                      Add New Package
                     </div>
                   </button>
                 )}
-                <button
-                  onClick={() => setShowAdminForm(true)}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none"
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <svg
-                      className="w-4 h-4 sm:w-5 sm:h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                      />
-                    </svg>
-                    Add New Package
-                  </div>
-                </button>
               </div>
             </div>
 
-            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-3 h-3 rounded-full ${backendStatus.connected ? "bg-green-500" : "bg-red-500"}`}
-                  ></div>
-                  <div>
-                    <p className="text-sm text-blue-800 font-medium">
-                      {backendStatus.connected
-                        ? "Backend Database Connected"
-                        : "Local Storage Only (Backend Offline)"}
-                    </p>
-                    <p className="text-xs text-blue-600">
-                      {backendStatus.connected
-                        ? `${backendStatus.packageCount} Lake Nakuru packages in database, ${filteredSafariRoutes.length} locally`
-                        : "All data stored locally in browser"}
-                    </p>
+            {/* Admin-only backend status info */}
+            {isAuthenticated && (
+              <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-3 h-3 rounded-full ${backendStatus.connected ? "bg-green-500" : "bg-red-500"}`}
+                    ></div>
+                    <div>
+                      <p className="text-sm text-blue-800 font-medium">
+                        {backendStatus.connected
+                          ? "Backend Database Connected"
+                          : "Backend Offline - Cannot load packages"}
+                      </p>
+                      <p className="text-xs text-blue-600">
+                        {backendStatus.connected
+                          ? `${backendStatus.packageCount} Lake Nakuru packages in database, ${filteredSafariRoutes.length} matching filter`
+                          : "Please ensure backend server is running on port 5000"}
+                      </p>
+                    </div>
                   </div>
+                  {backendStatus.connected ? (
+                    <div className="text-xs text-green-700 bg-green-100 px-3 py-1 rounded-full">
+                      Database Active
+                    </div>
+                  ) : (
+                    <div className="text-xs text-red-700 bg-red-100 px-3 py-1 rounded-full">
+                      Offline Mode
+                    </div>
+                  )}
                 </div>
-                {backendStatus.connected ? (
-                  <div className="text-xs text-green-700 bg-green-100 px-3 py-1 rounded-full">
-                    Database Active
-                  </div>
-                ) : (
-                  <div className="text-xs text-red-700 bg-red-100 px-3 py-1 rounded-full">
-                    Offline Mode
-                  </div>
-                )}
               </div>
-            </div>
+            )}
 
             {!selectedLodge ? (
               <div className="bg-gray-50 border border-gray-300 rounded-xl p-8 text-center">
@@ -2223,6 +2017,18 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   Select Your Lodge Now
                 </button>
               </div>
+            ) : backendLoading ? (
+              <div className="text-center py-12 bg-white rounded-xl shadow-lg border border-blue-200">
+                <div className="flex justify-center mb-4">
+                  <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                  Loading Packages...
+                </h3>
+                <p className="text-gray-600">
+                  Please wait while we fetch packages from the database.
+                </p>
+              </div>
             ) : filteredSafariRoutes.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-xl shadow-lg border border-blue-200">
                 <svg
@@ -2239,22 +2045,67 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   />
                 </svg>
                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  No Lake Nakuru Safari Packages Available
+                  No Lake Nakuru Packages Available
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  Click "Add New Package" to create your first Lake Nakuru
-                  safari package.
+                  {backendStatus.connected
+                    ? `No packages starting with "Lake Nakuru" were found in the database. ${
+                        isAuthenticated
+                          ? 'Click "Add New Package" to create your first Lake Nakuru safari package.'
+                          : "Please sign in as admin to add packages."
+                      }`
+                    : "Cannot connect to the database. Please ensure the backend server is running on port 5000."}
                 </p>
-                <button
-                  onClick={() => setShowAdminForm(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
-                >
-                  Create Your First Package
-                </button>
+                {isAuthenticated ? (
+                  <button
+                    onClick={() => setShowAdminForm(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Create Lake Nakuru Package
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      const event = new CustomEvent("authChange");
+                      window.dispatchEvent(event);
+                    }}
+                    className="bg-[#1a2a4f] hover:bg-[#0f1a33] text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    Sign In as Admin
+                  </button>
+                )}
               </div>
             ) : (
               <>
-                {/* Responsive Grid: 2x3 on mobile, 3x2 on desktop - USING filteredSafariRoutes */}
+                {/* Info banner about filtering - only visible to admins */}
+                {isAuthenticated &&
+                  safariRoutes.length > filteredSafariRoutes.length && (
+                    <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <span>
+                          Showing {filteredSafariRoutes.length} of{" "}
+                          {safariRoutes.length} total packages from database.
+                          Only packages starting with "Lake Nakuru" are
+                          displayed.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                {/* Responsive Grid */}
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {(showAllPackages
                     ? filteredSafariRoutes
@@ -2280,63 +2131,69 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                         key={route.id}
                         className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 border border-blue-200 relative group"
                       >
-                        <div className="absolute top-2 left-2 z-10 flex gap-1">
-                          {route.backendId && (
-                            <span className="bg-green-600 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
+                        {/* Admin-only badges */}
+                        {isAuthenticated && (
+                          <div className="absolute top-2 left-2 z-10 flex gap-1">
+                            <span className="bg-blue-600 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
                               ✓ DB
                             </span>
-                          )}
-                          <span className="bg-blue-600 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
-                            Local
-                          </span>
-                        </div>
+                            <span className="bg-cyan-600 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
+                              Nakuru Start
+                            </span>
+                          </div>
+                        )}
 
                         <div className="absolute top-2 right-2 z-10">
-                          <span className="bg-cyan-600 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
+                          <span className="bg-blue-600 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
                             🦩 Lake Nakuru
                           </span>
                         </div>
 
-                        <div className="absolute top-12 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          <button
-                            onClick={() => handleEditPackage(route)}
-                            className="bg-purple-600 hover:bg-purple-700 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
-                            title="Edit Package"
-                          >
-                            <svg
-                              className="w-3 h-3 md:w-4 md:h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                        {/* Admin-only edit/delete buttons */}
+                        {isAuthenticated && (
+                          <div className="absolute top-12 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <button
+                              onClick={() => handleEditPackage(route)}
+                              className="bg-purple-600 hover:bg-purple-700 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
+                              title="Edit Package"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeletePackage(route.id)}
-                            className="bg-red-500 hover:bg-red-600 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
-                            title="Delete Package"
-                          >
-                            <svg
-                              className="w-3 h-3 md:w-4 md:h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                              <svg
+                                className="w-3 h-3 md:w-4 md:h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDeletePackage(route.id, route.backendId)
+                              }
+                              className="bg-red-500 hover:bg-red-600 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
+                              title="Delete Package"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
-                        </div>
+                              <svg
+                                className="w-3 h-3 md:w-4 md:h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
 
                         <div className="h-24 md:h-32 bg-gradient-to-r from-blue-600 to-blue-700 flex items-center justify-center">
                           <div className="text-white text-center p-2">
@@ -2490,7 +2347,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   })}
                 </div>
 
-                {/* Dropdown Button - Show More/Less Packages - USING filteredSafariRoutes */}
+                {/* Dropdown Button - Show More/Less Packages */}
                 {filteredSafariRoutes.length > 6 && (
                   <div className="mt-8 text-center">
                     <button
@@ -3062,7 +2919,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   type="submit"
                   className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all duration-300"
                 >
-                  Create Lake Nakuru Package
+                  Create Package
                 </button>
                 <button
                   type="button"
