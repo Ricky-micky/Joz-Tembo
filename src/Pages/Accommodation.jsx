@@ -1,8 +1,24 @@
 import React, { useState, useEffect } from "react";
 import Swal from "sweetalert2";
 
-// API Configuration
-const API_BASE_URL = "http://localhost:5000";
+// ============================================
+// ✅ BACKEND CONNECTION - VERCEL TO RENDER
+// ============================================
+// This automatically works on both:
+// - Local development (localhost:5000)
+// - Vercel production (Render backend)
+// ============================================
+
+const API_BASE_URL =
+  process.env.REACT_APP_API_URL ||
+  (window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1"
+    ? "http://localhost:5000"
+    : "https://joz-tours-backend-2026.onrender.com");
+
+console.log("🔗 Backend API URL:", API_BASE_URL);
+console.log("🌍 Environment:", process.env.NODE_ENV);
+console.log("🏠 Hostname:", window.location.hostname);
 
 const CoastalAccommodation = () => {
   const [selectedLocation, setSelectedLocation] = useState("all");
@@ -27,17 +43,31 @@ const CoastalAccommodation = () => {
     roomType: "Standard",
   });
 
-  // Check backend health on mount
+  // Check backend health on mount (connects to Render from Vercel)
   useEffect(() => {
     const checkBackendHealth = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/health`);
+        console.log(`📡 Checking backend at: ${API_BASE_URL}/api/health`);
+        const response = await fetch(`${API_BASE_URL}/api/health`, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+        });
         const data = await response.json();
-        setBackendStatus(data.status === "healthy" ? "connected" : "error");
-        console.log("Backend connection:", data);
+
+        if (data.status === "healthy") {
+          setBackendStatus("connected");
+          console.log("✅ Backend connection successful!");
+          console.log("📊 Backend status:", data);
+        } else {
+          setBackendStatus("error");
+          console.warn("⚠️ Backend health check returned:", data);
+        }
       } catch (error) {
         setBackendStatus("offline");
-        console.warn("Backend server might be offline:", error.message);
+        console.error("❌ Cannot connect to Render backend:", error.message);
+        console.log("📧 Using email fallback for bookings");
       }
     };
 
@@ -920,6 +950,7 @@ Voi Wildlife Lodge also has tents, with en-suite bathrooms. Each tent accommodat
     };
 
     try {
+      // ✅ This now connects to your Render backend from Vercel
       const response = await fetch(`${API_BASE_URL}/api/send-booking`, {
         method: "POST",
         headers: {
@@ -1332,7 +1363,11 @@ Voi Wildlife Lodge also has tents, with en-suite bathrooms. Each tent accommodat
                 setSelectedLocation("all");
                 setShowAllCoastal(false);
               }}
-              className={`px-3 md:px-6 py-1.5 md:py-2.5 rounded-full text-xs md:text-base font-medium transition-all duration-300 ${selectedLocation === "all" ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-200" : "bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:shadow-md"}`}
+              className={`px-3 md:px-6 py-1.5 md:py-2.5 rounded-full text-xs md:text-base font-medium transition-all duration-300 ${
+                selectedLocation === "all"
+                  ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-200"
+                  : "bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:shadow-md"
+              }`}
             >
               All Locations
             </button>
@@ -1343,7 +1378,11 @@ Voi Wildlife Lodge also has tents, with en-suite bathrooms. Each tent accommodat
                   setSelectedLocation(location);
                   setShowAllCoastal(false);
                 }}
-                className={`px-3 md:px-6 py-1.5 md:py-2.5 rounded-full text-xs md:text-base font-medium transition-all duration-300 ${selectedLocation === location ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-200" : "bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:shadow-md"}`}
+                className={`px-3 md:px-6 py-1.5 md:py-2.5 rounded-full text-xs md:text-base font-medium transition-all duration-300 ${
+                  selectedLocation === location
+                    ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-200"
+                    : "bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:shadow-md"
+                }`}
               >
                 {getCategoryName(location)}
               </button>
