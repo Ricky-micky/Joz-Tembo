@@ -376,7 +376,7 @@ const Contact = () => {
                     Email Us
                   </p>
                   <p className="text-gray-600 text-xs sm:text-sm truncate">
-                    tembo4401@gmail.com
+                    info@joztembotours.com
                   </p>
                 </div>
               </motion.div>

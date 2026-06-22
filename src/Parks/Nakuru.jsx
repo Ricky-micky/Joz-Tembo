@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import Swal from "sweetalert2";
 
+// ✅ Backend API base URL – update this to point to your live backend
+const API_BASE_URL = "https://joz-tours-backend-2026.onrender.com/api";
+
 const Nakuru = () => {
   const [selectedRoute, setSelectedRoute] = useState(null);
   const [selectedDays, setSelectedDays] = useState(3);
@@ -139,7 +142,7 @@ const Nakuru = () => {
   const fetchPackagesFromBackend = async () => {
     setBackendLoading(true);
     try {
-      const response = await fetch("http://localhost:5000/api/safari-cards");
+      const response = await fetch(`${API_BASE_URL}/safari-cards`);
       if (response.ok) {
         const packagesData = await response.json();
         if (packagesData.success && packagesData.data) {
@@ -237,7 +240,7 @@ const Nakuru = () => {
       if (isAuthenticated) {
         Swal.fire({
           title: "Backend Connection Failed",
-          text: "Could not connect to the database. Please ensure the backend server is running on port 5000.",
+          text: "Could not connect to the database. Please ensure the backend server is running.",
           icon: "error",
           confirmButtonColor: "#2563eb",
         });
@@ -663,7 +666,7 @@ const Nakuru = () => {
       setIsLoading(true);
 
       const response = await fetch(
-        `http://localhost:5000/api/safari-cards/${editingRoute.backendId || editingRoute.id}`,
+        `${API_BASE_URL}/safari-cards/${editingRoute.backendId || editingRoute.id}`,
         {
           method: "PUT",
           headers: {
@@ -747,7 +750,7 @@ const Nakuru = () => {
         ],
       };
 
-      const response = await fetch("http://localhost:5000/api/safari-cards", {
+      const response = await fetch(`${API_BASE_URL}/safari-cards`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -956,7 +959,7 @@ const Nakuru = () => {
         try {
           const idToDelete = backendId || routeId;
           const response = await fetch(
-            `http://localhost:5000/api/safari-cards/${idToDelete}`,
+            `${API_BASE_URL}/safari-cards/${idToDelete}`,
             {
               method: "DELETE",
               headers: {
@@ -1246,7 +1249,7 @@ const Nakuru = () => {
   // Function to send booking to backend
   const sendBookingToBackend = async (bookingData) => {
     try {
-      const response = await fetch("http://localhost:5000/api/send-booking", {
+      const response = await fetch(`${API_BASE_URL}/send-booking`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1971,7 +1974,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                       <p className="text-xs text-blue-600">
                         {backendStatus.connected
                           ? `${backendStatus.packageCount} Lake Nakuru packages in database, ${filteredSafariRoutes.length} matching filter`
-                          : "Please ensure backend server is running on port 5000"}
+                          : "Please ensure backend server is running"}
                       </p>
                     </div>
                   </div>
@@ -2054,7 +2057,7 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                           ? 'Click "Add New Package" to create your first Lake Nakuru safari package.'
                           : "Please sign in as admin to add packages."
                       }`
-                    : "Cannot connect to the database. Please ensure the backend server is running on port 5000."}
+                    : "Cannot connect to the database. Please ensure the backend server is running."}
                 </p>
                 {isAuthenticated ? (
                   <button

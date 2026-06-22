@@ -40,6 +40,11 @@ import withReactContent from "sweetalert2-react-content";
 
 const MySwal = withReactContent(Swal);
 
+// ======================== BACKEND API BASE URL =========================
+// Change this to match your deployed backend. If your routes are prefixed
+// with /api, keep it as shown. Otherwise, remove "/api" at the end.
+const API_BASE_URL = "https://joz-tours-backend-2026.onrender.com/api";
+
 // ============ AUTH SYNC HELPER ============
 const dispatchAuthSync = () => {
   window.dispatchEvent(new Event("authChange"));
@@ -254,7 +259,8 @@ const UserProfileModal = ({ isOpen, onClose }) => {
     confirmNewPassword: "",
   });
 
-  const API_URL = "http://localhost:5000/api";
+  // Use the global API_BASE_URL
+  const API_URL = API_BASE_URL;
 
   useEffect(() => {
     if (isOpen && currentUser) loadUserProfile();
@@ -624,7 +630,8 @@ const AuthModal = ({ isOpen, onClose }) => {
     confirmPassword: "",
   });
 
-  const API_URL = "http://localhost:5000/api";
+  // Use the global API_BASE_URL
+  const API_URL = API_BASE_URL;
 
   const validateLogin = () => {
     const newErrors = {};

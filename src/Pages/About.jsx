@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:5000/api";
+// ✅ UPDATED: Use your deployed backend URL
+const API_BASE_URL = "https://joz-tours-backend-2026.onrender.com/api";
 
 const About = () => {
   const [selectedPartner, setSelectedPartner] = useState(null);

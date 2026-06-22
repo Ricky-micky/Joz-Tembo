@@ -4,6 +4,7 @@ import Navbar from "./Components/Navbar";
 import Footer from "./Components/Footer";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./Components/ProtectedRoute";
+import { Helmet} from "react-helmet-async";
 
 // Loading Screen Component with minimum display time
 const InitialLoader = () => (
