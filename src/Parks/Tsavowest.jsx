@@ -6,6 +6,9 @@
 import React, { useState, useEffect } from "react";
 import Swal from "sweetalert2";
 
+// ✅ Backend API base URL – update this to point to your live backend
+const API_BASE_URL = "https://joz-tours-backend-2026.onrender.com/api";
+
 const TsavoWest = () => {
   const [selectedRoute, setSelectedRoute] = useState(null);
   const [selectedDays, setSelectedDays] = useState(3);
@@ -144,7 +147,7 @@ const TsavoWest = () => {
   const fetchPackagesFromBackend = async () => {
     setBackendLoading(true);
     try {
-      const response = await fetch("http://localhost:5000/api/safari-cards");
+      const response = await fetch(`${API_BASE_URL}/safari-cards`);
       if (response.ok) {
         const packagesData = await response.json();
         if (packagesData.success && packagesData.data) {
@@ -244,7 +247,7 @@ const TsavoWest = () => {
       if (isAuthenticated) {
         Swal.fire({
           title: "Backend Connection Failed",
-          text: "Could not connect to the database. Please ensure the backend server is running on port 5000.",
+          text: "Could not connect to the database. Please ensure the backend server is running.",
           icon: "error",
           confirmButtonColor: "#9333ea",
         });
@@ -662,7 +665,7 @@ const TsavoWest = () => {
       setIsLoading(true);
 
       const response = await fetch(
-        `http://localhost:5000/api/safari-cards/${editingRoute.backendId || editingRoute.id}`,
+        `${API_BASE_URL}/safari-cards/${editingRoute.backendId || editingRoute.id}`,
         {
           method: "PUT",
           headers: {
@@ -745,7 +748,7 @@ const TsavoWest = () => {
         ],
       };
 
-      const response = await fetch("http://localhost:5000/api/safari-cards", {
+      const response = await fetch(`${API_BASE_URL}/safari-cards`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -946,7 +949,7 @@ const TsavoWest = () => {
         try {
           const idToDelete = backendId || routeId;
           const response = await fetch(
-            `http://localhost:5000/api/safari-cards/${idToDelete}`,
+            `${API_BASE_URL}/safari-cards/${idToDelete}`,
             {
               method: "DELETE",
               headers: {
@@ -1205,7 +1208,7 @@ const TsavoWest = () => {
 
   const sendBookingToBackend = async (bookingData) => {
     try {
-      const response = await fetch("http://localhost:5000/api/send-booking", {
+      const response = await fetch(`${API_BASE_URL}/send-booking`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1917,7 +1920,7 @@ ${bookingData.message || "No additional message"}
                       <p className="text-xs text-purple-600">
                         {backendStatus.connected
                           ? `${backendStatus.packageCount} Tsavo West packages in database, ${filteredSafariRoutes.length} matching filter`
-                          : "Please ensure backend server is running on port 5000"}
+                          : "Please ensure backend server is running"}
                       </p>
                     </div>
                   </div>
@@ -2000,7 +2003,7 @@ ${bookingData.message || "No additional message"}
                           ? 'Click "Add New Package" to create your first Tsavo West safari package.'
                           : "Please sign in as admin to add packages."
                       }`
-                    : "Cannot connect to the database. Please ensure the backend server is running on port 5000."}
+                    : "Cannot connect to the database. Please ensure the backend server is running."}
                 </p>
                 {isAuthenticated ? (
                   <button
