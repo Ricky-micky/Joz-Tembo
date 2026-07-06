@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import Swal from "sweetalert2";
 
-// ✅ Backend API base URL – update this to point to your live backend
+// Backend API base URL for booking emails
 const API_BASE_URL = "https://joz-tours-backend-2026.onrender.com/api";
 
 const Amboseli = () => {
@@ -22,32 +22,19 @@ const Amboseli = () => {
     startDate: "",
   });
   const [isLoading, setIsLoading] = useState(false);
-
-  // State for attraction modal
   const [selectedAttraction, setSelectedAttraction] = useState(null);
   const [showAttractionModal, setShowAttractionModal] = useState(false);
-
-  // State for expanded cards - each card independently
   const [expandedCards, setExpandedCards] = useState({});
-
-  // State for showing all packages (dropdown functionality)
   const [showAllPackages, setShowAllPackages] = useState(false);
-
-  // State for filtered packages (only those starting with Amboseli)
   const [filteredSafariRoutes, setFilteredSafariRoutes] = useState([]);
-
-  // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [showAdminForm, setShowAdminForm] = useState(false);
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [selectedRouteForPricing, setSelectedRouteForPricing] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingRoute, setEditingRoute] = useState(null);
 
-  const toggleCardExpand = (cardId) => {
-    setExpandedCards((prev) => ({
-      ...prev,
-      [cardId]: !prev[cardId],
-    }));
-  };
-
-  // Collapsible sections state
   const [collapsedSections, setCollapsedSections] = useState({
     parkInfo: false,
     gallery: false,
@@ -56,27 +43,64 @@ const Amboseli = () => {
     kilimanjaro: false,
   });
 
-  const toggleSection = (section) => {
-    setCollapsedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
-  };
+  const toggleSection = (section) =>
+    setCollapsedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  const toggleCardExpand = (cardId) =>
+    setExpandedCards((prev) => ({ ...prev, [cardId]: !prev[cardId] }));
 
-  const [backendLoading, setBackendLoading] = useState(false);
-  const [backendStatus, setBackendStatus] = useState({
-    connected: false,
-    packageCount: 0,
+  // ============ PACKAGES WITH LOCALSTORAGE PERSISTENCE ============
+  const [safariRoutes, setSafariRoutes] = useState(() => {
+    const savedPackages = localStorage.getItem("amboseliPackages");
+    if (savedPackages) {
+      try {
+        return JSON.parse(savedPackages);
+      } catch (error) {
+        console.error("Error loading saved packages:", error);
+      }
+    }
+    // Default packages
+    return [
+      {
+        id: 1,
+        name: "Amboseli → 3-Day Elephant & Kilimanjaro Safari",
+        description:
+          "Experience the best of Amboseli with stunning Kilimanjaro views and close encounters with large elephant herds.",
+        duration: "3-5 days recommended",
+        highlights: ["Kilimanjaro Views", "Elephant Herds", "Swamp Ecosystems"],
+        fullItinerary:
+          "Day 1: Arrival and afternoon game drive. Day 2: Full day exploring swamps and plains. Day 3: Sunrise Kilimanjaro views and departure.",
+        priceOptions: [
+          { people: 2, price: 350, currency: "euro" },
+          { people: 4, price: 240, currency: "euro" },
+          { people: 6, price: 180, currency: "euro" },
+          { people: 8, price: 150, currency: "euro" },
+        ],
+        priceRange: { min: 150, max: 350 },
+      },
+      {
+        id: 2,
+        name: "Amboseli → 5-Day Ultimate Kilimanjaro Experience",
+        description:
+          "Extended safari with premium Kilimanjaro viewing, elephant tracking, and cultural experiences.",
+        duration: "5-7 days recommended",
+        highlights: ["Elephant Research", "Maasai Culture", "Photography"],
+        fullItinerary:
+          "Day 1: Arrival and sunset views. Day 2-4: Game drives exploring different ecosystems. Day 5: Sunrise Kilimanjaro and departure.",
+        priceOptions: [
+          { people: 2, price: 580, currency: "euro" },
+          { people: 4, price: 420, currency: "euro" },
+          { people: 6, price: 320, currency: "euro" },
+          { people: 8, price: 260, currency: "euro" },
+        ],
+        priceRange: { min: 260, max: 580 },
+      },
+    ];
   });
 
-  const [showAdminForm, setShowAdminForm] = useState(false);
-  const [showPriceModal, setShowPriceModal] = useState(false);
-  const [selectedRouteForPricing, setSelectedRouteForPricing] = useState(null);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingRoute, setEditingRoute] = useState(null);
-
-  // State for all routes from backend
-  const [safariRoutes, setSafariRoutes] = useState([]);
+  // Save to localStorage whenever packages change
+  useEffect(() => {
+    localStorage.setItem("amboseliPackages", JSON.stringify(safariRoutes));
+  }, [safariRoutes]);
 
   const [adminForm, setAdminForm] = useState({
     routeName: "",
@@ -95,14 +119,12 @@ const Amboseli = () => {
     ],
   });
 
-  // Helper function to check if a package is an Amboseli package (starts with Amboseli)
   const isAmboseliPackage = (route) => {
     if (!route || !route.name) return false;
-    const name = route.name.toLowerCase();
-    return name.startsWith("amboseli");
+    return route.name.toLowerCase().startsWith("amboseli");
   };
 
-  // Check authentication on mount and listen for auth changes
+  // Check authentication
   useEffect(() => {
     const checkAuth = () => {
       const token = localStorage.getItem("access_token");
@@ -115,169 +137,42 @@ const Amboseli = () => {
         setCurrentUser(null);
       }
     };
-
     checkAuth();
-
-    // Listen for auth changes from footer
-    const handleAuthChange = () => {
-      checkAuth();
-    };
-
+    const handleAuthChange = () => checkAuth();
     window.addEventListener("authChange", handleAuthChange);
     window.addEventListener("storage", handleAuthChange);
-
     return () => {
       window.removeEventListener("authChange", handleAuthChange);
       window.removeEventListener("storage", handleAuthChange);
     };
   }, []);
 
-  // Fetch packages from backend on mount
-  const fetchPackagesFromBackend = async () => {
-    setBackendLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/safari-cards`);
-      if (response.ok) {
-        const packagesData = await response.json();
-        if (packagesData.success && packagesData.data) {
-          // Filter only Amboseli packages that start with "Amboseli"
-          const amboseliPackages = packagesData.data.filter(isAmboseliPackage);
-
-          const convertedPackages = amboseliPackages.map((pkg) => {
-            const hasPrices = pkg.prices && pkg.prices.length > 0;
-            const basePrice = hasPrices ? pkg.prices[0] : null;
-
-            return {
-              id: pkg.id,
-              backendId: pkg.id,
-              name: pkg.name,
-              description: pkg.description || "",
-              duration: `${pkg.total_days || 5}-${(pkg.total_days || 5) + 2} days recommended`,
-              highlights: pkg.highlights || [],
-              fullItinerary: pkg.description || "",
-              priceOptions:
-                hasPrices && basePrice.prices
-                  ? [
-                      {
-                        people: 2,
-                        price: basePrice.prices.pax_2_price || 350,
-                        currency: "euro",
-                      },
-                      {
-                        people: 4,
-                        price: basePrice.prices.pax_4_price || 240,
-                        currency: "euro",
-                      },
-                      {
-                        people: 6,
-                        price: basePrice.prices.pax_6_price || 180,
-                        currency: "euro",
-                      },
-                      {
-                        people: 8,
-                        price: basePrice.prices.pax_8_price || 150,
-                        currency: "euro",
-                      },
-                    ]
-                  : [
-                      { people: 2, price: 350, currency: "euro" },
-                      { people: 4, price: 240, currency: "euro" },
-                      { people: 6, price: 180, currency: "euro" },
-                      { people: 8, price: 150, currency: "euro" },
-                    ],
-              priceRange: {
-                min:
-                  hasPrices && basePrice.prices
-                    ? Math.min(
-                        basePrice.prices.pax_2_price || 350,
-                        basePrice.prices.pax_4_price || 240,
-                        basePrice.prices.pax_6_price || 180,
-                        basePrice.prices.pax_8_price || 150,
-                      )
-                    : 150,
-                max:
-                  hasPrices && basePrice.prices
-                    ? Math.max(
-                        basePrice.prices.pax_2_price || 350,
-                        basePrice.prices.pax_4_price || 240,
-                        basePrice.prices.pax_6_price || 180,
-                        basePrice.prices.pax_8_price || 150,
-                      )
-                    : 350,
-              },
-            };
-          });
-
-          setSafariRoutes(convertedPackages);
-          setBackendStatus({
-            connected: true,
-            packageCount: convertedPackages.length,
-          });
-        } else {
-          setSafariRoutes([]);
-          setBackendStatus({
-            connected: true,
-            packageCount: 0,
-          });
-        }
-      } else {
-        throw new Error("Failed to fetch packages");
-      }
-    } catch (error) {
-      console.error("Error fetching from backend:", error);
-      setBackendStatus({
-        connected: false,
-        packageCount: 0,
-      });
-      setSafariRoutes([]);
-      // Only show error to admins
-      if (isAuthenticated) {
-        Swal.fire({
-          title: "Backend Connection Failed",
-          text: "Could not connect to the database. Please ensure the backend server is running.",
-          icon: "error",
-          confirmButtonColor: "#d97706",
-        });
-      }
-    } finally {
-      setBackendLoading(false);
-    }
-  };
-
-  // Filter packages to only show those starting with "Amboseli"
+  // Filter packages
   useEffect(() => {
     const filtered = safariRoutes.filter((route) => isAmboseliPackage(route));
     setFilteredSafariRoutes(filtered);
     setShowAllPackages(false);
   }, [safariRoutes]);
 
-  // Check backend connection on mount
+  // Check existing lodge selection
   useEffect(() => {
-    fetchPackagesFromBackend();
-  }, []);
-
-  useEffect(() => {
-    const checkExistingSelection = () => {
-      try {
-        const bookingData = localStorage.getItem("amboseliBooking");
-        if (bookingData) {
-          const parsedData = JSON.parse(bookingData);
-          if (
-            parsedData.park &&
-            parsedData.park.name === "Amboseli National Park" &&
-            parsedData.lodge
-          ) {
-            setSelectedLodge(parsedData.lodge);
-          }
+    try {
+      const bookingData = localStorage.getItem("amboseliBooking");
+      if (bookingData) {
+        const parsedData = JSON.parse(bookingData);
+        if (
+          parsedData.park?.name === "Amboseli National Park" &&
+          parsedData.lodge
+        ) {
+          setSelectedLodge(parsedData.lodge);
         }
-      } catch (error) {
-        console.error("Error loading lodge selection:", error);
       }
-    };
-
-    checkExistingSelection();
+    } catch (error) {
+      console.error("Error loading lodge selection:", error);
+    }
   }, []);
 
+  // ============ PARK INFO & DATA ============
   const parkInfo = {
     id: 1,
     name: "Amboseli National Park",
@@ -305,12 +200,7 @@ const Amboseli = () => {
       image: "/assets/ol-tukai-lodge.jpg",
       fallbackImage: "/assets/lodges/default-lodge.jpg",
       description:
-        "One of the best wildlife lodges in Africa with stunning views of Kilimanjaro and abundant wildlife at its doorstep.",
-      gallery: [
-        "/assets/ol-tukai-1.jpg",
-        "/assets/ol-tukai-2.jpg",
-        "/assets/ol-tukai-3.jpg",
-      ],
+        "One of the best wildlife lodges in Africa with stunning views of Kilimanjaro.",
       priceRange: "$$$$",
       features: ["Kilimanjaro Views", "Premium Location", "Wildlife Haven"],
     },
@@ -319,12 +209,7 @@ const Amboseli = () => {
       image: "/assets/amboseli-serena.jpg",
       fallbackImage: "/assets/lodges/default-lodge.jpg",
       description:
-        "Maasai-inspired lodge with traditional design, swimming pool, and spectacular views of Mount Kilimanjaro.",
-      gallery: [
-        "/assets/amboseli-serena-1.jpg",
-        "/assets/amboseli-serena-2.jpg",
-        "/assets/amboseli-serena-3.jpg",
-      ],
+        "Maasai-inspired lodge with traditional design and swimming pool.",
       priceRange: "$$$",
       features: ["Maasai Design", "Swimming Pool", "Cultural Experience"],
     },
@@ -333,12 +218,7 @@ const Amboseli = () => {
       image: "/assets/tortilis-camp.jpg",
       fallbackImage: "/assets/lodges/default-lodge.jpg",
       description:
-        "Eco-friendly luxury tented camp named after the iconic Tortilis Acacia trees, offering privacy and exclusivity.",
-      gallery: [
-        "/assets/tortilis-1.jpg",
-        "/assets/tortilis-2.jpg",
-        "/assets/tortilis-3.jpg",
-      ],
+        "Eco-friendly luxury tented camp offering privacy and exclusivity.",
       priceRange: "$$$$$",
       features: ["Eco Luxury", "Private Tents", "Exclusive Experience"],
     },
@@ -346,13 +226,7 @@ const Amboseli = () => {
       name: "Kibo Safari Camp",
       image: "/assets/kibo-safari-camp.jpg",
       fallbackImage: "/assets/lodges/default-lodge.jpg",
-      description:
-        "Comfortable tented camp with excellent Kilimanjaro views, perfect for budget-conscious travelers.",
-      gallery: [
-        "/assets/kibo-1.jpg",
-        "/assets/kibo-2.jpg",
-        "/assets/kibo-3.jpg",
-      ],
+      description: "Comfortable tented camp with excellent Kilimanjaro views.",
       priceRange: "$$",
       features: ["Budget Friendly", "Great Views", "Comfortable Tents"],
     },
@@ -360,13 +234,7 @@ const Amboseli = () => {
       name: "Amboseli Sopa Lodge",
       image: "/assets/amboseli-sopa.jpg",
       fallbackImage: "/assets/lodges/default-lodge.jpg",
-      description:
-        "Spacious lodge with traditional African architecture, offering comfortable accommodation and great wildlife viewing.",
-      gallery: [
-        "/assets/sopa-1.jpg",
-        "/assets/sopa-2.jpg",
-        "/assets/sopa-3.jpg",
-      ],
+      description: "Spacious lodge with traditional African architecture.",
       priceRange: "$$$",
       features: ["Traditional Architecture", "Spacious", "Family Friendly"],
     },
@@ -375,12 +243,7 @@ const Amboseli = () => {
       image: "/assets/sentrim-amboseli.jpg",
       fallbackImage: "/assets/lodges/default-lodge.jpg",
       description:
-        "Affordable lodge with comfortable rooms and easy access to the park, perfect for all types of travelers.",
-      gallery: [
-        "/assets/sentrim-1.jpg",
-        "/assets/sentrim-2.jpg",
-        "/assets/sentrim-3.jpg",
-      ],
+        "Affordable lodge with comfortable rooms and easy park access.",
       priceRange: "$$",
       features: ["Affordable", "Easy Access", "Comfortable"],
     },
@@ -388,13 +251,7 @@ const Amboseli = () => {
       name: "Porini Amboseli Camp",
       image: "/assets/porini-amboseli.jpg",
       fallbackImage: "/assets/lodges/default-lodge.jpg",
-      description:
-        "Eco-friendly camp in the Selenkay Conservancy, offering authentic safari experiences with minimal environmental impact.",
-      gallery: [
-        "/assets/porini-1.jpg",
-        "/assets/porini-2.jpg",
-        "/assets/porini-3.jpg",
-      ],
+      description: "Eco-friendly camp offering authentic safari experiences.",
       priceRange: "$$$$",
       features: ["Eco Camp", "Community Based", "Authentic Safari"],
     },
@@ -505,81 +362,74 @@ const Amboseli = () => {
       name: "Observation Hill",
       image: "/assets/obsa-ambo.png",
       fallback: "/assets/amboseli-attractions/default-attraction.jpg",
-      description:
-        "360-degree viewpoint overlooking the entire park with breathtaking panoramas of the Amboseli plains and Mount Kilimanjaro.",
+      description: "360-degree viewpoint overlooking the entire park.",
       bestTime: "Sunrise or sunset",
       highlight: "Panoramic Kilimanjaro views",
-      details:
-        "Observation Hill offers the best vantage point in Amboseli. Climb to the top for 360-degree views of the park, the swamps, and on clear days, the snow-capped peak of Mount Kilimanjaro. Perfect for photography and game spotting.",
+      details: "Observation Hill offers the best vantage point in Amboseli.",
     },
     {
       id: 2,
       name: "Enkongo Narok Swamp",
       image: "/assets/swamp.png",
       fallback: "/assets/amboseli-attractions/default-attraction.jpg",
-      description:
-        "Permanent swamp attracting elephants and hippos, fed by underground rivers from Mount Kilimanjaro.",
+      description: "Permanent swamp attracting elephants and hippos.",
       bestTime: "Dry season",
       highlight: "Elephant drinking spot",
-      details:
-        "The Enkongo Narok Swamp is a vital water source during the dry season. Here you'll find large herds of elephants drinking and bathing, along with hippos, buffaloes, and numerous bird species.",
+      details: "Vital water source during the dry season.",
     },
     {
       id: 3,
       name: "Sinet Delta",
       image: "/assets/delta-ambo.png",
       fallback: "/assets/amboseli-attractions/default-attraction.jpg",
-      description:
-        "River delta with diverse birdlife and excellent game viewing.",
+      description: "River delta with diverse birdlife.",
       bestTime: "Year-round",
       highlight: "Bird watching paradise",
-      details:
-        "The Sinet Delta is a network of waterways that attracts incredible birdlife including flamingos, pelicans, and kingfishers. It's also a prime spot for spotting lions and cheetahs.",
+      details: "Attracts flamingos, pelicans, and kingfishers.",
     },
     {
       id: 4,
       name: "Kitirua Conservancy",
       image: "/assets/con-ambo.png",
       fallback: "/assets/amboseli-attractions/default-attraction.jpg",
-      description:
-        "Community-owned conservancy bordering the park, offering authentic cultural experiences.",
+      description: "Community-owned conservancy.",
       bestTime: "Year-round",
       highlight: "Cultural interactions",
-      details:
-        "Visit the Kitirua Conservancy to experience Maasai culture firsthand. Learn about traditional cattle herding, witness jumping dances, and support local community conservation efforts.",
+      details: "Experience Maasai culture firsthand.",
     },
     {
       id: 5,
       name: "Amboseli Research Centre",
       image: "/assets/tr-ambo.png",
       fallback: "/assets/amboseli-attractions/default-attraction.jpg",
-      description:
-        "Long-term elephant research facility studying the park's famous elephant population.",
+      description: "Long-term elephant research facility.",
       bestTime: "Year-round",
       highlight: "Scientific insights",
-      details:
-        "The Amboseli Elephant Research Project has been studying individual elephants since 1972 - the longest-running study of its kind. Learn about elephant behavior, family structures, and conservation efforts.",
+      details: "Studying elephants since 1972.",
     },
     {
       id: 6,
       name: "Kimana Gate Area",
       image: "/assets/kimana-ambo.png",
       fallback: "/assets/amboseli-attractions/default-attraction.jpg",
-      description:
-        "Entry point with excellent wildlife viewing and close proximity to the park's best elephant viewing areas.",
+      description: "Entry point with excellent wildlife viewing.",
       bestTime: "Early morning",
       highlight: "First game drive spot",
-      details:
-        "The Kimana Gate area is where many safaris begin. It's known for frequent elephant sightings and offers the classic Kilimanjaro backdrop for photography.",
+      details: "Known for frequent elephant sightings.",
     },
   ];
 
-  const openAttractionModal = (attraction) => {
-    setSelectedAttraction(attraction);
-    setShowAttractionModal(true);
-  };
-
+  // ============ ADMIN CRUD FUNCTIONS ============
   const handleEditPackage = (route) => {
+    if (!isAuthenticated) {
+      Swal.fire({
+        title: "Access Denied",
+        text: "Only administrators can edit packages.",
+        icon: "error",
+        confirmButtonColor: "#d97706",
+      });
+      return;
+    }
     setEditingRoute(route);
     setAdminForm({
       routeName: route.name
@@ -589,226 +439,100 @@ const Amboseli = () => {
       description: route.description,
       duration: route.duration,
       highlights: route.highlights.join(", "),
-      itinerary: route.fullItinerary || route.itinerary || "",
+      itinerary: route.fullItinerary || "",
       priceOptions: [...route.priceOptions],
     });
     setShowEditModal(true);
   };
 
-  const handleUpdatePackage = async (e) => {
+  const handleUpdatePackage = (e) => {
     e.preventDefault();
-
     const routeName = adminForm.routeName.toLowerCase().startsWith("amboseli")
       ? adminForm.routeName
       : `Amboseli → ${adminForm.routeName}`;
-
-    // Validate that the package name starts with "Amboseli"
     if (!routeName.toLowerCase().startsWith("amboseli")) {
       Swal.fire({
         title: "Invalid Package Name",
-        text: "All packages on this page must start with 'Amboseli'. Please ensure your package is for Amboseli National Park.",
+        text: "Must start with 'Amboseli'.",
         icon: "error",
         confirmButtonColor: "#d97706",
       });
       return;
     }
-
-    const prices = adminForm.priceOptions.map((option) => option.price);
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
-
+    const prices = adminForm.priceOptions.map((o) => o.price);
     const highlightsArray = adminForm.highlights
       .split(",")
       .map((h) => h.trim())
       .filter((h) => h.length > 0);
-
-    const updatedRoute = {
-      id: editingRoute.backendId || editingRoute.id,
-      name: routeName,
-      description: adminForm.description,
-      duration: adminForm.duration,
-      highlights: highlightsArray,
-      total_days: parseInt(adminForm.duration) || 5,
-      prices: [
-        {
-          people: 2,
-          prices: {
-            pax_2_price:
-              adminForm.priceOptions.find((o) => o.people === 2)?.price || 350,
-            pax_4_price:
-              adminForm.priceOptions.find((o) => o.people === 4)?.price || 240,
-            pax_6_price:
-              adminForm.priceOptions.find((o) => o.people === 6)?.price || 180,
-            pax_8_price:
-              adminForm.priceOptions.find((o) => o.people === 8)?.price || 150,
-          },
-        },
-      ],
-    };
-
-    try {
-      setIsLoading(true);
-
-      const response = await fetch(
-        `${API_BASE_URL}/safari-cards/${editingRoute.backendId || editingRoute.id}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-          },
-          body: JSON.stringify(updatedRoute),
-        },
-      );
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        Swal.fire({
-          title: "✅ Package Updated!",
-          html: `
-            <div class="text-left">
-              <p><strong>${updatedRoute.name}</strong> has been updated successfully in the database.</p>
-              <div class="mt-4 p-3 bg-gray-50 rounded">
-                <p class="text-sm"><strong>Price Range:</strong> €${minPrice} - €${maxPrice}</p>
-                <p class="text-sm"><strong>Duration:</strong> ${updatedRoute.duration}</p>
-              </div>
-            </div>
-          `,
-          icon: "success",
-          confirmButtonColor: "#d97706",
-        });
-
-        // Refresh packages from backend
-        await fetchPackagesFromBackend();
-      } else {
-        throw new Error(result.error || "Failed to update package");
-      }
-    } catch (error) {
-      console.error("Error updating package:", error);
-      Swal.fire({
-        title: "Update Failed",
-        text: "Could not update the package in the database. Please try again.",
-        icon: "error",
-        confirmButtonColor: "#d97706",
-      });
-    } finally {
-      setIsLoading(false);
-      setShowEditModal(false);
-      setEditingRoute(null);
-    }
-  };
-
-  const savePackageToBackend = async (packageData) => {
-    try {
-      const routeName = packageData.name.toLowerCase().startsWith("amboseli")
-        ? packageData.name
-        : `Amboseli → ${packageData.name}`;
-
-      const backendPackage = {
-        name: routeName,
-        description: packageData.description,
-        duration: packageData.duration || "3-5 days recommended",
-        itinerary: packageData.fullItinerary || "",
-        total_days: parseInt(packageData.duration) || 5,
-        highlights: packageData.highlights,
-        prices: [
-          {
-            people: 2,
-            prices: {
-              pax_2_price:
-                packageData.priceOptions.find((o) => o.people === 2)?.price ||
-                350,
-              pax_4_price:
-                packageData.priceOptions.find((o) => o.people === 4)?.price ||
-                240,
-              pax_6_price:
-                packageData.priceOptions.find((o) => o.people === 6)?.price ||
-                180,
-              pax_8_price:
-                packageData.priceOptions.find((o) => o.people === 8)?.price ||
-                150,
-            },
-          },
-        ],
-      };
-
-      const response = await fetch(`${API_BASE_URL}/safari-cards`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-        body: JSON.stringify(backendPackage),
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        return { success: true, data: result, backendId: result.package_id };
-      } else {
-        throw new Error(result.error || "Failed to save package");
-      }
-    } catch (error) {
-      console.error("Error saving to backend:", error);
-      return { success: false, error: error.message };
-    }
-  };
-
-  const handleAdminFormChange = (e) => {
-    const { name, value } = e.target;
-    setAdminForm({
-      ...adminForm,
-      [name]: value,
+    setSafariRoutes((prev) =>
+      prev.map((route) =>
+        route.id === editingRoute.id
+          ? {
+              ...route,
+              name: routeName,
+              description: adminForm.description,
+              duration: adminForm.duration,
+              highlights: highlightsArray,
+              fullItinerary: adminForm.itinerary,
+              priceOptions: [...adminForm.priceOptions],
+              priceRange: {
+                min: Math.min(...prices),
+                max: Math.max(...prices),
+              },
+            }
+          : route,
+      ),
+    );
+    Swal.fire({
+      title: "✅ Package Updated!",
+      html: `<p><strong>${routeName}</strong> updated successfully.</p>`,
+      icon: "success",
+      confirmButtonColor: "#d97706",
     });
+    setShowEditModal(false);
+    setEditingRoute(null);
   };
+
+  const handleAdminFormChange = (e) =>
+    setAdminForm({ ...adminForm, [e.target.name]: e.target.value });
 
   const handlePriceOptionChange = (index, field, value) => {
-    const updatedPriceOptions = [...adminForm.priceOptions];
-    updatedPriceOptions[index] = {
-      ...updatedPriceOptions[index],
+    const updated = [...adminForm.priceOptions];
+    updated[index] = {
+      ...updated[index],
       [field]:
-        field === "people" || field === "price" ? parseInt(value) : value,
+        field === "people" || field === "price" ? parseInt(value) || 0 : value,
     };
-
-    setAdminForm({
-      ...adminForm,
-      priceOptions: updatedPriceOptions,
-    });
+    setAdminForm({ ...adminForm, priceOptions: updated });
   };
 
   const addPriceOption = () => {
     if (adminForm.priceOptions.length >= 7) {
       Swal.fire({
         title: "Maximum Reached",
-        text: "You can only add up to 7 price options (2-8 pax).",
+        text: "Max 7 price options.",
         icon: "warning",
         confirmButtonColor: "#d97706",
       });
       return;
     }
-
-    const existingPeople = adminForm.priceOptions.map((opt) => opt.people);
-    let nextPeople = 2;
-    while (existingPeople.includes(nextPeople) && nextPeople <= 8) {
-      nextPeople++;
-    }
-
-    if (nextPeople > 8) {
+    const existing = adminForm.priceOptions.map((o) => o.people);
+    let next = 2;
+    while (existing.includes(next) && next <= 8) next++;
+    if (next > 8) {
       Swal.fire({
         title: "Maximum Reached",
-        text: "You can only add price options for 2-8 people.",
+        text: "Max 8 people.",
         icon: "warning",
         confirmButtonColor: "#d97706",
       });
       return;
     }
-
     setAdminForm({
       ...adminForm,
       priceOptions: [
         ...adminForm.priceOptions,
-        { people: nextPeople, price: 300, currency: "euro" },
+        { people: next, price: 300, currency: "euro" },
       ],
     });
   };
@@ -817,325 +541,193 @@ const Amboseli = () => {
     if (adminForm.priceOptions.length <= 2) {
       Swal.fire({
         title: "Minimum Required",
-        text: "You need at least 2 price options.",
+        text: "Need at least 2 options.",
         icon: "warning",
         confirmButtonColor: "#d97706",
       });
       return;
     }
-
-    const updatedPriceOptions = adminForm.priceOptions.filter(
-      (_, i) => i !== index,
-    );
     setAdminForm({
       ...adminForm,
-      priceOptions: updatedPriceOptions,
+      priceOptions: adminForm.priceOptions.filter((_, i) => i !== index),
     });
   };
 
-  const handleAdminSubmit = async (e) => {
+  const handleAdminSubmit = (e) => {
     e.preventDefault();
-
     const routeName = adminForm.routeName.toLowerCase().startsWith("amboseli")
       ? adminForm.routeName
       : `Amboseli → ${adminForm.routeName}`;
-
-    // Validate that the package name starts with "Amboseli"
     if (!routeName.toLowerCase().startsWith("amboseli")) {
       Swal.fire({
-        title: "Invalid Package Name",
-        text: "All packages on this page must start with 'Amboseli'. This page only accepts Amboseli safari packages.",
+        title: "Invalid",
+        text: "Must start with 'Amboseli'.",
         icon: "error",
         confirmButtonColor: "#d97706",
       });
       return;
     }
-
-    const prices = adminForm.priceOptions.map((option) => option.price);
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
-
+    const prices = adminForm.priceOptions.map((o) => o.price);
     const highlightsArray = adminForm.highlights
       .split(",")
       .map((h) => h.trim())
       .filter((h) => h.length > 0);
-
     const newRoute = {
+      id: Date.now(),
       name: routeName,
       description: adminForm.description,
       duration: adminForm.duration,
       highlights: highlightsArray,
       fullItinerary: adminForm.itinerary,
-      priceOptions: adminForm.priceOptions,
-      priceRange: { min: minPrice, max: maxPrice },
+      priceOptions: [...adminForm.priceOptions],
+      priceRange: { min: Math.min(...prices), max: Math.max(...prices) },
     };
+    setSafariRoutes((prev) => [...prev, newRoute]);
+    Swal.fire({
+      title: "✅ Package Created!",
+      html: `<p><strong>${newRoute.name}</strong> created with prices €${Math.min(...prices)} - €${Math.max(...prices)}.</p>`,
+      icon: "success",
+      confirmButtonColor: "#d97706",
+    });
+    setAdminForm({
+      routeName: "",
+      description: "",
+      duration: "3-5 days recommended",
+      highlights: "",
+      itinerary: "",
+      priceOptions: [
+        { people: 2, price: 350, currency: "euro" },
+        { people: 3, price: 280, currency: "euro" },
+        { people: 4, price: 240, currency: "euro" },
+        { people: 5, price: 200, currency: "euro" },
+        { people: 6, price: 180, currency: "euro" },
+        { people: 7, price: 160, currency: "euro" },
+        { people: 8, price: 150, currency: "euro" },
+      ],
+    });
+    setShowAdminForm(false);
+  };
 
-    const backendResult = await savePackageToBackend(newRoute);
-
-    if (backendResult.success) {
+  const handleDeletePackage = (routeId) => {
+    if (!isAuthenticated) {
       Swal.fire({
-        title: "✅ Package Created!",
-        html: `
-          <div class="text-left">
-            <p><strong>${newRoute.name}</strong> has been created successfully in the database.</p>
-            <div class="mt-4 p-3 bg-gray-50 rounded">
-              <p class="text-sm"><strong>Price Range:</strong> €${minPrice} - €${maxPrice}</p>
-              <p class="text-sm"><strong>Duration:</strong> ${newRoute.duration}</p>
-            </div>
-          </div>
-        `,
-        icon: "success",
-        confirmButtonColor: "#d97706",
-      });
-
-      // Refresh packages from backend
-      await fetchPackagesFromBackend();
-
-      setAdminForm({
-        routeName: "",
-        description: "",
-        duration: "3-5 days recommended",
-        highlights: "",
-        itinerary: "",
-        priceOptions: [
-          { people: 2, price: 350, currency: "euro" },
-          { people: 3, price: 280, currency: "euro" },
-          { people: 4, price: 240, currency: "euro" },
-          { people: 5, price: 200, currency: "euro" },
-          { people: 6, price: 180, currency: "euro" },
-          { people: 7, price: 160, currency: "euro" },
-          { people: 8, price: 150, currency: "euro" },
-        ],
-      });
-      setShowAdminForm(false);
-    } else {
-      Swal.fire({
-        title: "Creation Failed",
-        text: "Could not save the package to the database. Please try again.",
+        title: "Access Denied",
+        text: "Only admins can delete.",
         icon: "error",
         confirmButtonColor: "#d97706",
       });
+      return;
     }
-  };
-
-  const handleDeletePackage = (routeId, backendId) => {
     Swal.fire({
-      title: "Delete Safari Package?",
-      text: "Are you sure you want to permanently delete this safari package from the database? This action cannot be undone.",
+      title: "Delete Package?",
+      text: "This cannot be undone.",
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#d97706",
       cancelButtonColor: "#6b7280",
-      confirmButtonText: "Yes, delete permanently!",
-      cancelButtonText: "Cancel",
-    }).then(async (result) => {
+      confirmButtonText: "Yes, delete!",
+    }).then((result) => {
       if (result.isConfirmed) {
-        try {
-          const idToDelete = backendId || routeId;
-          const response = await fetch(
-            `${API_BASE_URL}/safari-cards/${idToDelete}`,
-            {
-              method: "DELETE",
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-              },
-            },
-          );
-
-          const resultData = await response.json();
-
-          if (response.ok && resultData.success) {
-            Swal.fire({
-              title: "Deleted Permanently!",
-              text: "The safari package has been permanently deleted from the database.",
-              icon: "success",
-              confirmButtonColor: "#d97706",
-            });
-
-            if (
-              selectedRoute &&
-              (selectedRoute.backendId === idToDelete ||
-                selectedRoute.id === idToDelete)
-            ) {
-              setSelectedRoute(null);
-            }
-
-            // Refresh packages from backend
-            await fetchPackagesFromBackend();
-          } else {
-            throw new Error(resultData.error || "Failed to delete package");
-          }
-        } catch (error) {
-          console.error("Error deleting package:", error);
-          Swal.fire({
-            title: "Delete Failed",
-            text: "Could not delete the package from the database. Please try again.",
-            icon: "error",
-            confirmButtonColor: "#d97706",
-          });
-        }
+        setSafariRoutes((prev) => prev.filter((route) => route.id !== routeId));
+        if (selectedRoute?.id === routeId) setSelectedRoute(null);
+        Swal.fire({
+          title: "Deleted!",
+          text: "Package removed.",
+          icon: "success",
+          confirmButtonColor: "#d97706",
+        });
       }
     });
   };
 
+  // ============ BOOKING FUNCTIONS ============
   const handleRouteSelect = async (route) => {
     if (!selectedLodge) {
       const result = await Swal.fire({
         title: "Lodge Required",
-        html: `
-          <div class="text-left">
-            <p class="mb-4">To book an Amboseli safari package, you must first select your accommodation.</p>
-            <div class="bg-amber-50 p-3 rounded-lg mb-4">
-              <p class="font-semibold">Why select a lodge first?</p>
-              <p class="text-sm">Amboseli safaris include lodge accommodation. Your chosen lodge affects pricing and itinerary planning.</p>
-            </div>
-            <p class="text-sm text-gray-600">You'll select from 7 premium lodges including Ol Tukai Lodge, Amboseli Serena, and Tortilis Camp.</p>
-          </div>
-        `,
+        text: "Select accommodation first.",
         icon: "info",
         showCancelButton: true,
         confirmButtonColor: "#d97706",
-        cancelButtonColor: "#6b7280",
-        confirmButtonText: "Choose Lodge Now",
+        confirmButtonText: "Choose Lodge",
         cancelButtonText: "Maybe Later",
-        customClass: {
-          popup: "rounded-lg",
-        },
       });
-
-      if (result.isConfirmed) {
-        setShowLodgeModal(true);
-      }
+      if (result.isConfirmed) setShowLodgeModal(true);
       return;
     }
-
     setSelectedRouteForPricing(route);
     setShowPriceModal(true);
   };
 
-  const handleFinalPriceSelect = (people, price) => {
+  const handleFinalPriceSelect = (people) => {
     setSelectedRoute(selectedRouteForPricing);
-    setBookingForm({
-      ...bookingForm,
-      travelers: people,
-    });
+    setBookingForm((prev) => ({ ...prev, travelers: people }));
     setShowPriceModal(false);
-
-    setTimeout(() => {
-      setShowBookingModal(true);
-    }, 300);
+    setTimeout(() => setShowBookingModal(true), 300);
   };
 
-  const handleLodgeSelection = async (lodge) => {
+  const handleLodgeSelection = (lodge) => {
     Swal.fire({
-      title: "Selecting Lodge...",
-      text: "Please wait while we save your lodge preference.",
+      title: "Selecting...",
+      text: "Saving preference.",
       allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      },
+      didOpen: () => Swal.showLoading(),
     });
-
     setTimeout(() => {
       setSelectedLodge(lodge);
-
-      const bookingData = {
-        park: parkInfo,
-        lodge: lodge,
-        step: "lodge_selected",
-        timestamp: new Date().toISOString(),
-        page: "Amboseli",
-      };
-      try {
-        localStorage.setItem("amboseliBooking", JSON.stringify(bookingData));
-      } catch (error) {
-        console.error("Error saving lodge selection:", error);
-      }
-
+      localStorage.setItem(
+        "amboseliBooking",
+        JSON.stringify({
+          park: parkInfo,
+          lodge,
+          step: "lodge_selected",
+          timestamp: new Date().toISOString(),
+          page: "Amboseli",
+        }),
+      );
       Swal.fire({
         title: "Lodge Selected!",
-        html: `<strong>${lodge.name}</strong> has been selected for your Amboseli stay.`,
+        html: `<strong>${lodge.name}</strong> selected.`,
         icon: "success",
         confirmButtonColor: "#d97706",
-        confirmButtonText: "Continue",
       });
-
       setShowLodgeModal(false);
     }, 1000);
   };
 
-  const generateItinerary = (days, route) => {
+  const generateItinerary = (days) => {
     const itineraries = [];
-
     for (let i = 1; i <= days; i++) {
-      if (i === 1) {
+      if (i === 1)
         itineraries.push(
-          `Day ${i}: Arrival at Amboseli National Park, check-in at ${
-            selectedLodge?.name || "selected lodge"
-          } and afternoon game drive with Kilimanjaro views`,
+          `Day ${i}: Arrival at Amboseli, check-in at ${selectedLodge?.name || "lodge"} and afternoon game drive.`,
         );
-      } else if (i === days) {
+      else if (i === days)
         itineraries.push(
-          `Day ${i}: Sunrise game drive with Kilimanjaro backdrop, breakfast, and departure from ${route
-            .split("→")
-            .pop()
-            .trim()}`,
+          `Day ${i}: Sunrise game drive with Kilimanjaro backdrop, breakfast, and departure.`,
         );
-      } else {
-        const parksInRoute = route.split("→").map((park) => park.trim());
-        const currentParkIndex = Math.min(i - 2, parksInRoute.length - 1);
-        if (
-          parksInRoute[currentParkIndex] &&
-          (parksInRoute[currentParkIndex].includes("Amboseli") ||
-            parksInRoute[currentParkIndex].includes("amboseli"))
-        ) {
-          itineraries.push(
-            `Day ${i}: Full day exploring Amboseli's swamps and plains with elephant tracking and picnic lunch. ${
-              selectedLodge ? `Overnight at ${selectedLodge.name}` : ""
-            }`,
-          );
-        } else if (parksInRoute[currentParkIndex]) {
-          itineraries.push(
-            `Day ${i}: Travel to ${parksInRoute[currentParkIndex]} for wildlife viewing`,
-          );
-        } else {
-          itineraries.push(
-            `Day ${i}: Game drive and wildlife viewing in Amboseli National Park`,
-          );
-        }
-      }
+      else
+        itineraries.push(
+          `Day ${i}: Full day exploring Amboseli's swamps and plains. ${selectedLodge ? `Overnight at ${selectedLodge.name}.` : ""}`,
+        );
     }
     return itineraries;
   };
 
   const calculatePrice = (travelers, route) => {
-    if (!route || !route.priceOptions) return 0;
-
-    const priceOption = route.priceOptions.find(
-      (option) => option.people === travelers,
-    );
-
-    if (priceOption) {
-      return priceOption.price;
-    }
-
-    const sortedOptions = [...route.priceOptions].sort(
-      (a, b) => a.people - b.people,
-    );
-
-    const higherOption = sortedOptions.find(
-      (option) => option.people >= travelers,
-    );
-    if (higherOption) return higherOption.price;
-
-    return sortedOptions[sortedOptions.length - 1].price;
+    if (!route?.priceOptions) return 0;
+    const exact = route.priceOptions.find((o) => o.people === travelers);
+    if (exact) return exact.price;
+    const sorted = [...route.priceOptions].sort((a, b) => a.people - b.people);
+    const higher = sorted.find((o) => o.people >= travelers);
+    return higher ? higher.price : sorted[sorted.length - 1].price;
   };
 
   const validateBookingReadiness = () => {
     if (!selectedLodge) {
       Swal.fire({
         title: "Accommodation Required",
-        text: "Please select a lodge before proceeding with booking.",
+        text: "Select a lodge first.",
         icon: "warning",
         confirmButtonColor: "#d97706",
       });
@@ -1144,7 +736,7 @@ const Amboseli = () => {
     if (!selectedRoute) {
       Swal.fire({
         title: "Safari Route Required",
-        text: "Please select a safari route package.",
+        text: "Select a package.",
         icon: "warning",
         confirmButtonColor: "#d97706",
       });
@@ -1153,150 +745,76 @@ const Amboseli = () => {
     return true;
   };
 
-  const handleBookingConfirm = () => {
-    if (!validateBookingReadiness()) {
-      return;
-    }
-    setShowItineraryModal(false);
-    setShowBookingModal(true);
-  };
-
-  const handleFormChange = (e) => {
-    setBookingForm({
-      ...bookingForm,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const handleImageError = (e, fallbackImage) => {
+  const handleFormChange = (e) =>
+    setBookingForm({ ...bookingForm, [e.target.name]: e.target.value });
+  const handleImageError = (e, fallback) => {
     e.target.onerror = null;
-    e.target.src = fallbackImage;
+    e.target.src = fallback;
   };
-
   const openGalleryModal = (index) => {
     setActiveGalleryImage(index);
     setShowGalleryModal(true);
   };
-
-  const nextGalleryImage = () => {
+  const nextGalleryImage = () =>
     setActiveGalleryImage((prev) =>
       prev === galleryImages.length - 1 ? 0 : prev + 1,
     );
-  };
-
-  const prevGalleryImage = () => {
+  const prevGalleryImage = () =>
     setActiveGalleryImage((prev) =>
       prev === 0 ? galleryImages.length - 1 : prev - 1,
     );
-  };
 
+  // Backend booking API
   const sendBookingToBackend = async (bookingData) => {
     try {
       const response = await fetch(`${API_BASE_URL}/send-booking`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bookingData),
       });
-
       const result = await response.json();
-
-      if (response.status === 400) {
-        console.error("Backend validation error:", result);
-        return { success: false, error: result.error };
-      }
-
-      if (result.success) {
+      if (response.ok && result.success) {
         Swal.fire({
           title: "✅ Booking Sent!",
           text: "Check your email for confirmation.",
           icon: "success",
           confirmButtonColor: "#d97706",
         });
-        return { success: true, data: result };
-      } else {
-        console.error("Backend error:", result.error);
-        return { success: false, error: result.error };
+        return { success: true };
       }
+      return { success: false, error: result.error };
     } catch (error) {
-      console.error("Error sending to backend:", error);
       return { success: false, error: error.message };
     }
   };
 
+  // Fallback email
   const sendDirectEmail = (bookingData) => {
-    const emailBody = `
-AMBOSELI NATIONAL PARK SAFARI BOOKING DETAILS:
-
-📍 PARK: ${bookingData.park}
-🏨 LODGE: ${bookingData.lodge}
-🚗 ROUTE/ITINERARY: ${bookingData.route}
-📅 DURATION: ${bookingData.days} days
-👥 TRAVELERS: ${bookingData.travelers} pax
-💰 ESTIMATED TOTAL PRICE: €${bookingData.totalPrice}
-📝 ITINERARY TYPE: ${bookingData.route}
-
-🏨 LODGE DETAILS:
-- Name: ${selectedLodge?.name || "Not selected"}
-- Description: ${selectedLodge?.description || "Not available"}
-- Features: ${selectedLodge?.features?.join(", ") || "Not available"}
-
-📋 ITINERARY:
-${bookingData.itinerary.map((day, index) => `${index + 1}. ${day}`).join("\n")}
-
-👤 PERSONAL INFORMATION:
-- Full Name: ${bookingData.fullName}
-- Email: ${bookingData.email}
-- Phone: ${bookingData.phone}
-- Start Date: ${bookingData.startDate || "Flexible"}
-
-💬 ADDITIONAL MESSAGE:
-${bookingData.message || "No additional message"}
-
-🗻 PARK HIGHLIGHTS:
-${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
-
-🐘 WILDLIFE: ${parkInfo.wildlife}
-
-📧 This booking was made from the Amboseli National Park page.
-    `.trim();
-
+    const body = `AMBOSELI SAFARI BOOKING:\n\n📍 ${bookingData.park}\n🏨 ${bookingData.lodge}\n🚗 ${bookingData.route}\n📅 ${bookingData.days} days\n👥 ${bookingData.travelers} pax\n💰 €${bookingData.totalPrice}\n\n👤 ${bookingData.fullName}\n📧 ${bookingData.email}\n📞 ${bookingData.phone}\n📅 Start: ${bookingData.startDate || "Flexible"}\n\n💬 ${bookingData.message || "None"}`;
     window.open(
-      `mailto:tembo4401@gmail.com?subject=Amboseli Safari Booking: ${
-        bookingData.route
-      } - ${bookingData.fullName}&body=${encodeURIComponent(emailBody)}`,
+      `mailto:tembo4401@gmail.com?subject=Amboseli Booking: ${bookingData.route} - ${bookingData.fullName}&body=${encodeURIComponent(body)}`,
     );
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!validateBookingReadiness()) {
-      return;
-    }
-
+    if (!validateBookingReadiness()) return;
     setIsLoading(true);
-
     Swal.fire({
-      title: "Processing Booking...",
-      text: "Please wait while we process your booking request.",
+      title: "Processing...",
       allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      },
+      didOpen: () => Swal.showLoading(),
     });
 
     setTimeout(async () => {
       const totalPrice = calculatePrice(bookingForm.travelers, selectedRoute);
-      const itinerary = generateItinerary(selectedDays, selectedRoute.name);
-
+      const itinerary = generateItinerary(selectedDays);
       const bookingData = {
         park: parkInfo.name,
         lodge: selectedLodge.name,
         days: selectedDays,
         travelers: bookingForm.travelers,
-        totalPrice: totalPrice,
+        totalPrice,
         fullName: bookingForm.fullName,
         email: bookingForm.email,
         phone: bookingForm.phone,
@@ -1313,18 +831,11 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
         lodgeFeatures: selectedLodge.features?.join(", ") || "",
       };
 
+      // Try backend first, fallback to email
       const result = await sendBookingToBackend(bookingData);
-
-      if (!result.success) {
-        sendDirectEmail({
-          ...bookingData,
-          route: selectedRoute.name,
-          itinerary: itinerary,
-        });
-      }
+      if (!result.success) sendDirectEmail({ ...bookingData, itinerary });
 
       setShowBookingModal(false);
-      setShowItineraryModal(false);
       setBookingForm({
         fullName: "",
         email: "",
@@ -1340,21 +851,15 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
   const handleClearLodgeSelection = () => {
     Swal.fire({
       title: "Change Lodge?",
-      text: "Are you sure you want to change your selected lodge?",
+      text: "Are you sure?",
       icon: "question",
       showCancelButton: true,
       confirmButtonColor: "#d97706",
-      cancelButtonColor: "#6b7280",
       confirmButtonText: "Yes, Change",
-      cancelButtonText: "Cancel",
     }).then((result) => {
       if (result.isConfirmed) {
         setSelectedLodge(null);
-        try {
-          localStorage.removeItem("amboseliBooking");
-        } catch (error) {
-          console.error("Error removing lodge selection:", error);
-        }
+        localStorage.removeItem("amboseliBooking");
       }
     });
   };
@@ -1405,9 +910,10 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
     </div>
   );
 
+  // ============ RENDER ============
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 to-amber-100 overflow-x-hidden">
-      {/* Hero Section */}
+      {/* Hero */}
       <div className="relative h-96 overflow-hidden">
         <img
           src={parkInfo.image}
@@ -1424,27 +930,14 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
             <p className="text-lg md:text-xl max-w-2xl">
               {parkInfo.description}
             </p>
-
             {selectedLodge && (
               <div className="mt-4 inline-flex flex-wrap items-center bg-amber-700/80 backdrop-blur-sm text-white px-4 py-2 rounded-lg gap-2">
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-                <span className="font-semibold">Lodge Selected:</span>
-                {selectedLodge.name}
+                <span className="font-semibold">
+                  Lodge: {selectedLodge.name}
+                </span>
                 <button
                   onClick={handleClearLodgeSelection}
-                  className="text-sm bg-white/20 hover:bg-white/30 px-2 py-1 rounded transition-colors"
+                  className="text-sm bg-white/20 hover:bg-white/30 px-2 py-1 rounded"
                 >
                   Change
                 </button>
@@ -1454,229 +947,125 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="container mx-auto px-4 py-12">
-        {/* Park Information Section */}
+        {/* Park Info */}
         <div className="mb-16">
           <SectionHeader title="Discover Amboseli" section="parkInfo">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
               <div>
-                <p className="text-gray-700 text-lg mb-6 leading-relaxed">
-                  Amboseli National Park, located in southern Kenya, is one of
-                  Africa's most iconic safari destinations. Renowned for its
-                  breathtaking views of Mount Kilimanjaro, Africa's highest
-                  peak, the park offers unparalleled opportunities to observe
-                  large herds of elephants against the stunning mountain
-                  backdrop. The park's name comes from the Maasai word "Empusel"
-                  meaning "salty dust."
+                <p className="text-gray-700 text-lg mb-6">
+                  Amboseli National Park is one of Africa's most iconic safari
+                  destinations, renowned for its breathtaking views of Mount
+                  Kilimanjaro and large elephant herds.
                 </p>
-
                 <div className="mb-8 bg-white p-6 rounded-xl shadow-lg border border-amber-200">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
-                    <h3 className="text-xl font-bold text-gray-800">
+                  <div className="flex flex-col sm:flex-row justify-between mb-4 gap-3">
+                    <h3 className="text-xl font-bold">
                       Your Amboseli Accommodation
                     </h3>
                     {!selectedLodge ? (
                       <button
                         onClick={() => setShowLodgeModal(true)}
-                        className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors w-full sm:w-auto"
+                        className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-semibold"
                       >
                         Choose Lodge
                       </button>
                     ) : (
-                      <div className="flex gap-2 w-full sm:w-auto">
+                      <div className="flex gap-2">
                         <button
                           onClick={() => setShowLodgeModal(true)}
-                          className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex-1 sm:flex-none"
+                          className="bg-amber-600 text-white px-4 py-2 rounded-lg"
                         >
                           View Details
                         </button>
                         <button
                           onClick={handleClearLodgeSelection}
-                          className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex-1 sm:flex-none"
+                          className="bg-gray-600 text-white px-4 py-2 rounded-lg"
                         >
                           Change
                         </button>
                       </div>
                     )}
                   </div>
-
                   {selectedLodge ? (
-                    <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-amber-50 rounded-lg">
+                    <div className="flex items-center gap-4 p-4 bg-amber-50 rounded-lg">
                       <img
                         src={selectedLodge.image}
                         alt={selectedLodge.name}
                         className="w-32 h-24 object-cover rounded-lg"
-                        onError={(e) =>
-                          handleImageError(e, selectedLodge.fallbackImage)
-                        }
                       />
                       <div>
-                        <h4 className="font-bold text-lg text-gray-800">
+                        <h4 className="font-bold text-lg">
                           {selectedLodge.name}
                         </h4>
                         <p className="text-gray-600 text-sm">
-                          {selectedLodge.description.substring(0, 100)}...
+                          {selectedLodge.description?.substring(0, 100)}...
                         </p>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {selectedLodge.features
-                            ?.slice(0, 2)
-                            .map((feature, idx) => (
-                              <span
-                                key={idx}
-                                className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded"
-                              >
-                                {feature}
-                              </span>
-                            ))}
-                        </div>
                       </div>
                     </div>
                   ) : (
-                    <div className="text-center p-6 bg-amber-50 rounded-lg border border-amber-200">
-                      <svg
-                        className="w-12 h-12 text-amber-500 mx-auto mb-3"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                        />
-                      </svg>
-                      <p className="text-gray-700 mb-3">
-                        No lodge selected yet
-                      </p>
+                    <div className="text-center p-6 bg-amber-50 rounded-lg">
+                      <p className="text-gray-700">No lodge selected yet</p>
                       <p className="text-gray-600 text-sm">
-                        Choose from 7 premium lodges for your Amboseli stay
+                        Choose from 7 premium lodges
                       </p>
                     </div>
                   )}
                 </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-xl font-semibold text-gray-800 mb-3">
-                      Park Highlights
-                    </h3>
-                    <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {parkInfo.highlights.map((highlight, index) => (
-                        <li
-                          key={index}
-                          className="flex items-center text-gray-700"
-                        >
-                          <span className="w-2 h-2 bg-amber-600 rounded-full mr-3"></span>
-                          {highlight}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <h4 className="font-semibold text-gray-800 mb-2">
-                        Best Time to Visit
-                      </h4>
-                      <p className="text-gray-700">{parkInfo.bestTime}</p>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-800 mb-2">
-                        Key Wildlife
-                      </h4>
-                      <p className="text-gray-700">{parkInfo.wildlife}</p>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-800 mb-2">
-                        Park Size
-                      </h4>
-                      <p className="text-gray-700">{parkInfo.size}</p>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-800 mb-2">
-                        Special Feature
-                      </h4>
-                      <p className="text-gray-700">{parkInfo.specialFeature}</p>
-                    </div>
-                  </div>
+                <div>
+                  <h3 className="text-xl font-semibold mb-3">
+                    Park Highlights
+                  </h3>
+                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {parkInfo.highlights.map((h, i) => (
+                      <li key={i} className="flex items-center text-gray-700">
+                        <span className="w-2 h-2 bg-amber-600 rounded-full mr-3"></span>
+                        {h}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
-
               <div className="bg-white rounded-xl shadow-lg p-6 border border-amber-200">
-                <h3 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+                <h3 className="text-2xl font-bold mb-6 text-center">
                   Why Choose Amboseli?
                 </h3>
                 <div className="space-y-4">
-                  <div className="flex items-start space-x-4">
-                    <div className="bg-amber-100 p-3 rounded-lg">
-                      <span className="text-amber-600 font-bold">✓</span>
+                  {[
+                    "Elephant Paradise",
+                    "Kilimanjaro Views",
+                    "Diverse Ecosystems",
+                    "Cultural Experience",
+                  ].map((title, i) => (
+                    <div key={i} className="flex items-start space-x-4">
+                      <div className="bg-amber-100 p-3 rounded-lg">
+                        <span className="text-amber-600 font-bold">✓</span>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold">{title}</h4>
+                        <p className="text-gray-600 text-sm">
+                          {
+                            [
+                              "Over 1,500 free-ranging elephants",
+                              "Stunning views at sunrise/sunset",
+                              "Lake beds, swamps & woodlands",
+                              "Visit Maasai communities",
+                            ][i]
+                          }
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-800">
-                        Elephant Paradise
-                      </h4>
-                      <p className="text-gray-600 text-sm">
-                        Home to over 1,500 free-ranging elephants with some of
-                        the largest tusks in Africa.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-4">
-                    <div className="bg-amber-100 p-3 rounded-lg">
-                      <span className="text-amber-600 font-bold">✓</span>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-800">
-                        Kilimanjaro Views
-                      </h4>
-                      <p className="text-gray-600 text-sm">
-                        Stunning, unobstructed views of Mount Kilimanjaro,
-                        especially at sunrise and sunset.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-4">
-                    <div className="bg-amber-100 p-3 rounded-lg">
-                      <span className="text-amber-600 font-bold">✓</span>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-800">
-                        Diverse Ecosystems
-                      </h4>
-                      <p className="text-gray-600 text-sm">
-                        From dried lake beds to swamps and woodlands, supporting
-                        varied wildlife.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-4">
-                    <div className="bg-amber-100 p-3 rounded-lg">
-                      <span className="text-amber-600 font-bold">✓</span>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-800">
-                        Cultural Experience
-                      </h4>
-                      <p className="text-gray-600 text-sm">
-                        Opportunities to visit Maasai communities and learn
-                        about their traditional way of life.
-                      </p>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
           </SectionHeader>
         </div>
 
+        {/* Lodge Step */}
         {!selectedLodge && (
           <div className="mb-8 bg-gradient-to-r from-amber-600 to-amber-700 text-white p-4 rounded-xl shadow-lg">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="bg-white/20 p-2 rounded-lg">
                   <svg
@@ -1697,14 +1086,11 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                   <h3 className="font-bold text-lg">
                     Step 1: Select Your Lodge
                   </h3>
-                  <p className="text-sm opacity-90">
-                    Choose accommodation before selecting safari packages
-                  </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowLodgeModal(true)}
-                className="bg-white text-amber-600 hover:bg-gray-100 px-4 py-2 rounded-lg font-semibold transition-colors w-full sm:w-auto"
+                className="bg-white text-amber-600 px-4 py-2 rounded-lg font-semibold"
               >
                 Browse Lodges
               </button>
@@ -1712,47 +1098,39 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           </div>
         )}
 
-        {/* Gallery Section */}
+        {/* Gallery */}
         <div className="mb-16">
           <SectionHeader title="Amboseli Gallery" section="gallery">
-            <p className="text-gray-600 text-center mb-8 max-w-3xl mx-auto">
-              Experience the majestic beauty of Amboseli through our collection
-              of images showcasing elephants, Kilimanjaro, and the park's
-              diverse wildlife.
-            </p>
-
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
-              {galleryImages.slice(0, 8).map((image, index) => (
+              {galleryImages.slice(0, 8).map((img, i) => (
                 <div
-                  key={image.id}
+                  key={img.id}
                   className="relative overflow-hidden rounded-lg shadow-md cursor-pointer group"
-                  onClick={() => openGalleryModal(index)}
+                  onClick={() => openGalleryModal(i)}
                 >
                   <img
-                    src={image.src}
-                    alt={image.title}
+                    src={img.src}
+                    alt={img.title}
                     className="w-full h-40 sm:h-48 object-cover transition-transform duration-300 group-hover:scale-110"
-                    onError={(e) => handleImageError(e, image.fallback)}
+                    onError={(e) => handleImageError(e, img.fallback)}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end">
                     <div className="p-3 text-white">
-                      <h4 className="font-semibold text-sm">{image.title}</h4>
-                      <p className="text-xs opacity-90">{image.description}</p>
+                      <h4 className="font-semibold text-sm">{img.title}</h4>
                     </div>
                   </div>
                   <div className="absolute top-2 right-2">
                     <span className="bg-amber-600 text-white text-xs px-2 py-1 rounded-full">
-                      {image.category}
+                      {img.category}
                     </span>
                   </div>
                 </div>
               ))}
             </div>
-
             <div className="text-center">
               <button
                 onClick={() => openGalleryModal(0)}
-                className="bg-amber-600 hover:bg-amber-700 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105"
+                className="bg-amber-600 hover:bg-amber-700 text-white px-6 py-3 rounded-lg font-semibold"
               >
                 View Full Gallery ({galleryImages.length} images)
               </button>
@@ -1760,59 +1138,35 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           </SectionHeader>
         </div>
 
-        {/* Attractions Section */}
+        {/* Attractions */}
         <div className="mb-16">
-          <SectionHeader
-            title="Top Attractions in Amboseli"
-            section="attractions"
-          >
+          <SectionHeader title="Top Attractions" section="attractions">
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-              {attractions.map((attraction) => (
+              {attractions.map((attr) => (
                 <div
-                  key={attraction.id}
-                  onClick={() => openAttractionModal(attraction)}
+                  key={attr.id}
+                  onClick={() => {
+                    setSelectedAttraction(attr);
+                    setShowAttractionModal(true);
+                  }}
                   className="group cursor-pointer"
                 >
-                  <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 border border-amber-200">
-                    <div className="relative h-48 sm:h-56 md:h-64 overflow-hidden">
+                  <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all border border-amber-200">
+                    <div className="relative h-48 sm:h-56 overflow-hidden">
                       <img
-                        src={attraction.image}
-                        alt={attraction.name}
+                        src={attr.image}
+                        alt={attr.name}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                        onError={(e) =>
-                          handleImageError(e, attraction.fallback)
-                        }
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center">
-                        <div className="p-3 md:p-4 text-white text-center w-full bg-black/50 backdrop-blur-sm">
-                          <svg
-                            className="w-5 h-5 md:w-6 md:h-6 mx-auto mb-1"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                            />
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                            />
-                          </svg>
-                          <span className="text-xs md:text-sm font-semibold">
-                            Click to view details
-                          </span>
-                        </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 flex items-end justify-center">
+                        <span className="text-white text-sm font-semibold p-3">
+                          Click to view details
+                        </span>
                       </div>
                     </div>
-                    <div className="p-3 md:p-4 text-center">
-                      <h3 className="text-sm md:text-xl font-bold text-gray-800 group-hover:text-amber-600 transition-colors line-clamp-2">
-                        {attraction.name}
+                    <div className="p-3 text-center">
+                      <h3 className="text-sm md:text-xl font-bold text-gray-800 group-hover:text-amber-600">
+                        {attr.name}
                       </h3>
                     </div>
                   </div>
@@ -1822,283 +1176,94 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           </SectionHeader>
         </div>
 
-        {/* Safari Packages Section with Responsive Grid and Dropdown */}
+        {/* Safari Packages */}
         <div className="mb-16">
           <SectionHeader title="Amboseli Safari Packages" section="packages">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
               <div>
                 <p className="text-gray-600">
                   {selectedLodge
-                    ? `Packages available with your selected lodge: ${selectedLodge.name}`
-                    : "Select a lodge first to view available packages"}
+                    ? `Packages with ${selectedLodge.name}`
+                    : "Select a lodge first"}
                 </p>
                 <p className="text-sm text-amber-600 mt-1">
-                  📍 Showing {filteredSafariRoutes.length} packages starting
-                  with "Amboseli"
+                  📍 {filteredSafariRoutes.length} Amboseli packages
                 </p>
               </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <button
-                  onClick={fetchPackagesFromBackend}
-                  disabled={backendLoading}
-                  className={`${backendLoading ? "bg-gray-400" : "bg-amber-600 hover:bg-amber-700"} text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none`}
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    {backendLoading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Loading...
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          className="w-4 h-4 sm:w-5 sm:h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                          />
-                        </svg>
-                        Refresh
-                      </>
-                    )}
-                  </div>
-                </button>
+              <div className="flex gap-2">
                 {isAuthenticated && (
                   <button
                     onClick={() => setShowAdminForm(true)}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm sm:text-base flex-1 sm:flex-none"
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold"
                   >
-                    <div className="flex items-center justify-center gap-2">
-                      <svg
-                        className="w-4 h-4 sm:w-5 sm:h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                        />
-                      </svg>
-                      Add New Package
-                    </div>
+                    + Add New Package
                   </button>
                 )}
               </div>
             </div>
-
-            {/* Admin-only backend status info */}
-            {isAuthenticated && (
-              <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-3 h-3 rounded-full ${backendStatus.connected ? "bg-green-500" : "bg-red-500"}`}
-                    ></div>
-                    <div>
-                      <p className="text-sm text-blue-800 font-medium">
-                        {backendStatus.connected
-                          ? "Backend Database Connected"
-                          : "Backend Offline - Cannot load packages"}
-                      </p>
-                      <p className="text-xs text-blue-600">
-                        {backendStatus.connected
-                          ? `${backendStatus.packageCount} Amboseli packages in database, ${filteredSafariRoutes.length} matching filter`
-                          : "Please ensure backend server is running"}
-                      </p>
-                    </div>
-                  </div>
-                  {backendStatus.connected ? (
-                    <div className="text-xs text-green-700 bg-green-100 px-3 py-1 rounded-full">
-                      Database Active
-                    </div>
-                  ) : (
-                    <div className="text-xs text-red-700 bg-red-100 px-3 py-1 rounded-full">
-                      Offline Mode
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
             {!selectedLodge ? (
-              <div className="bg-gray-50 border border-gray-300 rounded-xl p-8 text-center">
-                <svg
-                  className="w-16 h-16 text-gray-400 mx-auto mb-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                  />
-                </svg>
-                <h3 className="text-xl font-semibold text-gray-700 mb-3">
+              <div className="text-center py-12 bg-white rounded-xl shadow-lg">
+                <h3 className="text-xl font-semibold mb-3">
                   Lodge Selection Required
                 </h3>
-                <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                  Please select your Amboseli accommodation first. Safari
-                  packages are tailored to include your chosen lodge stay.
-                </p>
                 <button
                   onClick={() => setShowLodgeModal(true)}
-                  className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105"
+                  className="bg-gradient-to-r from-amber-600 to-amber-700 text-white px-6 py-3 rounded-lg font-semibold"
                 >
                   Select Your Lodge Now
                 </button>
               </div>
-            ) : backendLoading ? (
-              <div className="text-center py-12 bg-white rounded-xl shadow-lg border border-amber-200">
-                <div className="flex justify-center mb-4">
-                  <div className="w-12 h-12 border-4 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
-                </div>
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  Loading Packages...
-                </h3>
-                <p className="text-gray-600">
-                  Please wait while we fetch packages from the database.
-                </p>
-              </div>
             ) : filteredSafariRoutes.length === 0 ? (
-              <div className="text-center py-12 bg-white rounded-xl shadow-lg border border-amber-200">
-                <svg
-                  className="w-16 h-16 text-gray-400 mx-auto mb-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  No Amboseli Packages Available
+              <div className="text-center py-12 bg-white rounded-xl shadow-lg">
+                <h3 className="text-xl font-semibold mb-2">
+                  No Packages Available
                 </h3>
-                <p className="text-gray-600 mb-6">
-                  {backendStatus.connected
-                    ? `No packages starting with "Amboseli" were found in the database. ${
-                        isAuthenticated
-                          ? 'Click "Add New Package" to create your first Amboseli safari package.'
-                          : "Please sign in as admin to add packages."
-                      }`
-                    : "Cannot connect to the database. Please ensure the backend server is running."}
-                </p>
                 {isAuthenticated ? (
                   <button
                     onClick={() => setShowAdminForm(true)}
-                    className="bg-amber-600 hover:bg-amber-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                    className="bg-amber-600 text-white px-6 py-3 rounded-lg"
                   >
-                    Create Amboseli Package
+                    Create Package
                   </button>
                 ) : (
-                  <button
-                    onClick={() => {
-                      const event = new CustomEvent("authChange");
-                      window.dispatchEvent(event);
-                    }}
-                    className="bg-[#1a2a4f] hover:bg-[#0f1a33] text-white px-6 py-3 rounded-lg font-semibold transition-colors"
-                  >
-                    Sign In as Admin
-                  </button>
+                  <p className="text-gray-600">
+                    Sign in as admin to add packages.
+                  </p>
                 )}
               </div>
             ) : (
               <>
-                {/* Info banner about filtering - only visible to admins */}
-                {isAuthenticated &&
-                  safariRoutes.length > filteredSafariRoutes.length && (
-                    <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-                      <div className="flex items-center gap-2">
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                        <span>
-                          Showing {filteredSafariRoutes.length} of{" "}
-                          {safariRoutes.length} total packages from database.
-                          Only packages starting with "Amboseli" are displayed.
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                {/* Responsive Grid */}
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {(showAllPackages
                     ? filteredSafariRoutes
                     : filteredSafariRoutes.slice(0, 6)
                   ).map((route) => {
                     const isExpanded = expandedCards[route.id] || false;
-                    const shouldTruncate =
-                      route.description && route.description.length > 100;
-                    const displayDescription =
-                      isExpanded || !shouldTruncate
+                    const displayDesc =
+                      isExpanded ||
+                      !route.description ||
+                      route.description.length <= 100
                         ? route.description
                         : route.description.substring(0, 100) + "...";
-
-                    const shouldTruncateItinerary =
-                      route.fullItinerary && route.fullItinerary.length > 80;
-                    const displayItinerary =
-                      isExpanded || !shouldTruncateItinerary
-                        ? route.fullItinerary
-                        : route.fullItinerary.substring(0, 80) + "...";
-
                     return (
                       <div
                         key={route.id}
-                        className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 border border-amber-200 relative group"
+                        className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all border border-amber-200 relative group"
                       >
-                        {/* Admin-only badges - only visible to logged in users */}
-                        {isAuthenticated && (
-                          <div className="absolute top-2 left-2 z-10 flex gap-1">
-                            <span className="bg-amber-600 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
-                              ✓ DB
-                            </span>
-                            <span className="bg-green-700 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
-                              Amboseli Start
-                            </span>
-                          </div>
-                        )}
-
-                        <div className="absolute top-2 right-2 z-10">
-                          <span className="bg-amber-600 text-white text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
+                        <div className="absolute top-2 right-2">
+                          <span className="bg-amber-600 text-white text-xs px-2 py-1 rounded-full">
                             🐘 Amboseli
                           </span>
                         </div>
-
-                        {/* Admin-only edit/delete buttons */}
                         {isAuthenticated && (
-                          <div className="absolute top-12 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                          <div className="absolute top-12 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={() => handleEditPackage(route)}
-                              className="bg-purple-600 hover:bg-purple-700 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
-                              title="Edit Package"
+                              className="bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-full"
+                              title="Edit"
                             >
                               <svg
-                                className="w-3 h-3 md:w-4 md:h-4"
+                                className="w-4 h-4"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -2112,14 +1277,12 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                               </svg>
                             </button>
                             <button
-                              onClick={() =>
-                                handleDeletePackage(route.id, route.backendId)
-                              }
-                              className="bg-red-500 hover:bg-red-600 text-white p-1.5 md:p-2 rounded-full shadow-lg transition-colors"
-                              title="Delete Package"
+                              onClick={() => handleDeletePackage(route.id)}
+                              className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full"
+                              title="Delete"
                             >
                               <svg
-                                className="w-3 h-3 md:w-4 md:h-4"
+                                className="w-4 h-4"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -2134,150 +1297,52 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                             </button>
                           </div>
                         )}
-
                         <div className="h-24 md:h-32 bg-gradient-to-r from-amber-600 to-amber-700 flex items-center justify-center">
-                          <div className="text-white text-center p-2">
-                            <h3 className="text-xs md:text-sm font-bold mb-0.5 md:mb-1">
+                          <div className="text-white text-center">
+                            <h3 className="text-xs md:text-sm font-bold">
                               {route.name.split("→")[0].trim()}
                             </h3>
-                            <div className="w-6 md:w-8 h-0.5 bg-white mx-auto mb-0.5 md:mb-1"></div>
-                            <p className="text-[10px] md:text-xs text-amber-100">
+                            <p className="text-xs text-amber-100">
                               Starting Point
                             </p>
                           </div>
                         </div>
                         <div className="p-2 md:p-3">
-                          <h3 className="text-xs md:text-sm font-bold text-gray-800 mb-1 line-clamp-1">
+                          <h3 className="text-xs md:text-sm font-bold text-gray-800 mb-1 truncate">
                             {route.name}
                           </h3>
-
-                          {/* Description with Show More/Less */}
-                          <div className="mb-2">
-                            <p className="text-gray-600 text-[10px] md:text-xs">
-                              {displayDescription}
-                            </p>
-                            {shouldTruncate && (
-                              <button
-                                onClick={() => toggleCardExpand(route.id)}
-                                className="text-amber-600 text-[9px] md:text-[10px] font-semibold mt-1 hover:underline flex items-center gap-1"
-                              >
-                                {isExpanded ? (
-                                  <>
-                                    <svg
-                                      className="w-3 h-3"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M5 15l7-7 7 7"
-                                      />
-                                    </svg>
-                                    Show Less
-                                  </>
-                                ) : (
-                                  <>
-                                    <svg
-                                      className="w-3 h-3"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M19 9l-7 7-7-7"
-                                      />
-                                    </svg>
-                                    Show More
-                                  </>
-                                )}
-                              </button>
-                            )}
-                          </div>
-
-                          <div className="mb-2">
-                            <div className="flex flex-wrap gap-1">
-                              {route.highlights
-                                .slice(0, 2)
-                                .map((highlight, idx) => (
-                                  <span
-                                    key={idx}
-                                    className="bg-amber-100 text-amber-700 px-1 py-0.5 rounded text-[8px] md:text-[10px]"
-                                  >
-                                    {highlight}
-                                  </span>
-                                ))}
-                            </div>
-                          </div>
-
-                          {/* Itinerary with Show More/Less */}
-                          {route.fullItinerary && (
-                            <div className="mb-2">
-                              <p className="text-gray-500 text-[9px] md:text-[10px] italic">
-                                {displayItinerary}
-                              </p>
-                              {shouldTruncateItinerary && !shouldTruncate && (
-                                <button
-                                  onClick={() => toggleCardExpand(route.id)}
-                                  className="text-amber-600 text-[9px] md:text-[10px] font-semibold mt-1 hover:underline flex items-center gap-1"
-                                >
-                                  {isExpanded ? (
-                                    <>
-                                      <svg
-                                        className="w-3 h-3"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={2}
-                                          d="M5 15l7-7 7 7"
-                                        />
-                                      </svg>
-                                      Show Less
-                                    </>
-                                  ) : (
-                                    <>
-                                      <svg
-                                        className="w-3 h-3"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={2}
-                                          d="M19 9l-7 7-7-7"
-                                        />
-                                      </svg>
-                                      Show More
-                                    </>
-                                  )}
-                                </button>
-                              )}
-                            </div>
+                          <p className="text-gray-600 text-xs mb-2">
+                            {displayDesc}
+                          </p>
+                          {route.description?.length > 100 && (
+                            <button
+                              onClick={() => toggleCardExpand(route.id)}
+                              className="text-amber-600 text-xs font-semibold"
+                            >
+                              {isExpanded ? "Show Less" : "Show More"}
+                            </button>
                           )}
-
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            {route.highlights?.slice(0, 2).map((h, i) => (
+                              <span
+                                key={i}
+                                className="bg-amber-100 text-amber-700 text-xs px-1 py-0.5 rounded"
+                              >
+                                {h}
+                              </span>
+                            ))}
+                          </div>
                           <div className="flex justify-between items-center mb-2">
-                            <div className="text-amber-600 font-bold text-[10px] md:text-xs">
+                            <div className="text-amber-600 font-bold text-xs">
                               €{route.priceRange.min} - €{route.priceRange.max}
                             </div>
-                            <span className="text-[8px] md:text-[10px] text-gray-500 bg-gray-100 px-1 py-0.5 rounded">
+                            <span className="text-xs text-gray-500">
                               {route.duration}
                             </span>
                           </div>
-
                           <button
                             onClick={() => handleRouteSelect(route)}
-                            className="w-full bg-amber-600 hover:bg-amber-700 text-white py-1 md:py-1.5 px-2 rounded-lg font-semibold text-[10px] md:text-xs transition-all duration-300"
+                            className="w-full bg-amber-600 hover:bg-amber-700 text-white py-1.5 px-2 rounded-lg font-semibold text-xs transition-all"
                           >
                             Select Package
                           </button>
@@ -2286,30 +1351,15 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
                     );
                   })}
                 </div>
-
-                {/* Dropdown Button - Show More/Less Packages */}
                 {filteredSafariRoutes.length > 6 && (
                   <div className="mt-8 text-center">
                     <button
                       onClick={() => setShowAllPackages(!showAllPackages)}
-                      className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg"
+                      className="bg-gradient-to-r from-amber-600 to-amber-700 text-white px-6 py-3 rounded-lg font-semibold"
                     >
-                      <svg
-                        className={`w-5 h-5 transform transition-transform duration-300 ${showAllPackages ? "rotate-180" : ""}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
                       {showAllPackages
-                        ? `Show Less Packages (${filteredSafariRoutes.length - 6} hidden)`
-                        : `Show More Packages (${filteredSafariRoutes.length - 6} more)`}
+                        ? "Show Less"
+                        : `Show More (${filteredSafariRoutes.length - 6} more)`}
                     </button>
                   </div>
                 )}
@@ -2318,93 +1368,44 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           </SectionHeader>
         </div>
 
-        {/* Kilimanjaro Information */}
+        {/* Kilimanjaro Info */}
         <div className="mb-16">
           <SectionHeader
             title="Kilimanjaro & Elephant Experience"
             section="kilimanjaro"
           >
             <div className="bg-white rounded-xl shadow-lg p-6 md:p-8 border border-amber-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
-                  <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                  <h3 className="text-xl font-semibold mb-4">
                     Africa's Tallest Backdrop
                   </h3>
                   <p className="text-gray-700 mb-4">
-                    Mount Kilimanjaro, Africa's highest peak at 5,895 meters,
-                    provides a dramatic backdrop to Amboseli's wildlife. The
-                    best views are typically in the early morning and late
-                    afternoon when clouds clear. The contrast between the
-                    snow-capped peak and the African savannah creates one of the
-                    continent's most iconic scenes.
+                    Mount Kilimanjaro (5,895m) provides a dramatic backdrop to
+                    Amboseli's wildlife.
                   </p>
-                  <ul className="space-y-2 text-gray-700">
+                  <ul className="space-y-2">
                     <li className="flex items-center">
                       <span className="w-2 h-2 bg-amber-600 rounded-full mr-3"></span>
-                      <strong>Best Viewing:</strong> Early morning (6-8 AM) and
-                      late afternoon (4-6 PM)
+                      <strong>Best Viewing:</strong> Early morning (6-8 AM)
                     </li>
                     <li className="flex items-center">
                       <span className="w-2 h-2 bg-amber-600 rounded-full mr-3"></span>
-                      <strong>Elephant Research:</strong> Home to the Amboseli
-                      Elephant Research Project
-                    </li>
-                    <li className="flex items-center">
-                      <span className="w-2 h-2 bg-amber-600 rounded-full mr-3"></span>
-                      <strong>Swamp Ecosystems:</strong> Permanent swamps fed by
-                      Kilimanjaro's underground rivers
-                    </li>
-                    <li className="flex items-center">
-                      <span className="w-2 h-2 bg-amber-600 rounded-full mr-3"></span>
-                      <strong>Photography:</strong> Prime location for wildlife
-                      photography with mountain backdrop
+                      <strong>Elephant Research:</strong> Since 1972
                     </li>
                   </ul>
                 </div>
                 <div className="bg-amber-50 p-6 rounded-lg">
-                  <h4 className="font-semibold text-gray-800 mb-3">
-                    Elephant Conservation
-                  </h4>
-                  <div className="space-y-3">
-                    <div className="flex items-start">
-                      <div className="bg-amber-100 p-2 rounded mr-3">
-                        <span className="text-amber-600 font-bold">🐘</span>
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-800">
-                          Long-term Research
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          Continuous elephant study since 1972 - world's longest
-                        </p>
-                      </div>
+                  <h4 className="font-semibold mb-3">Elephant Conservation</h4>
+                  <div className="flex items-start">
+                    <div className="bg-amber-100 p-2 rounded mr-3">
+                      <span>🐘</span>
                     </div>
-                    <div className="flex items-start">
-                      <div className="bg-amber-100 p-2 rounded mr-3">
-                        <span className="text-amber-600 font-bold">📊</span>
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-800">
-                          Individual Recognition
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          Over 1,500 elephants identified and monitored
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-start">
-                      <div className="bg-amber-100 p-2 rounded mr-3">
-                        <span className="text-amber-600 font-bold">👵</span>
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-800">
-                          Famous Elephants
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          Home to Tim, one of Africa's largest and most famous
-                          elephants
-                        </p>
-                      </div>
+                    <div>
+                      <p className="font-medium">Long-term Research</p>
+                      <p className="text-sm text-gray-600">
+                        Continuous study since 1972
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -2413,250 +1414,611 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           </SectionHeader>
         </div>
 
-        {/* Plan Your Adventure - NO DROPDOWN */}
+        {/* Plan Your Adventure */}
         <div className="mb-16">
-          <div className="mb-6">
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-800 font-serif">
-              Plan Your Amboseli Adventure
-            </h2>
-          </div>
-
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-800 font-serif mb-6">
+            Plan Your Amboseli Adventure
+          </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
-            {/* Step 1 */}
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-amber-200 hover:shadow-xl transition-all duration-300 group">
-              <div className="relative p-4 md:p-6">
-                <div className="absolute -top-3 -left-3 w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-amber-600 to-amber-700 rounded-full flex items-center justify-center shadow-lg z-10 group-hover:scale-110 transition-transform duration-300">
-                  <span className="text-white font-bold text-xl md:text-3xl">
-                    1
-                  </span>
-                </div>
-                <div className="pl-8 md:pl-10 pt-2 text-center sm:text-left">
-                  <div className="mb-3 flex justify-center sm:justify-start">
-                    <div className="w-12 h-12 md:w-16 md:h-16 bg-amber-100 rounded-full flex items-center justify-center group-hover:bg-amber-200 transition-colors">
-                      <svg
-                        className="w-6 h-6 md:w-8 md:h-8 text-amber-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                        />
-                      </svg>
-                    </div>
+            {[
+              {
+                step: 1,
+                title: "Choose Your Lodge",
+                desc: "Select from 7 premium lodges",
+              },
+              {
+                step: 2,
+                title: "Select Safari Package",
+                desc: "Choose a safari route",
+              },
+              { step: 3, title: "Book & Confirm", desc: "Secure your spot" },
+            ].map((s) => (
+              <div
+                key={s.step}
+                className="bg-white rounded-xl shadow-lg overflow-hidden border border-amber-200 hover:shadow-xl transition-all group"
+              >
+                <div className="relative p-4 md:p-6">
+                  <div className="absolute -top-3 -left-3 w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-amber-600 to-amber-700 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                    <span className="text-white font-bold text-xl md:text-3xl">
+                      {s.step}
+                    </span>
                   </div>
-                  <h3 className="font-bold text-gray-800 text-base md:text-lg mb-1 md:mb-2">
-                    Choose Your Lodge
-                  </h3>
-                  <p className="text-gray-500 text-xs md:text-sm">
-                    Select from 7 premium lodges for your Amboseli stay
-                  </p>
+                  <div className="pl-8 md:pl-10 pt-2">
+                    <h3 className="font-bold text-gray-800 text-base md:text-lg mb-1">
+                      {s.title}
+                    </h3>
+                    <p className="text-gray-500 text-xs md:text-sm">{s.desc}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            {/* Step 2 */}
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-amber-200 hover:shadow-xl transition-all duration-300 group">
-              <div className="relative p-4 md:p-6">
-                <div className="absolute -top-3 -left-3 w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-amber-600 to-amber-700 rounded-full flex items-center justify-center shadow-lg z-10 group-hover:scale-110 transition-transform duration-300">
-                  <span className="text-white font-bold text-xl md:text-3xl">
-                    2
-                  </span>
-                </div>
-                <div className="pl-8 md:pl-10 pt-2 text-center sm:text-left">
-                  <div className="mb-3 flex justify-center sm:justify-start">
-                    <div className="w-12 h-12 md:w-16 md:h-16 bg-amber-100 rounded-full flex items-center justify-center group-hover:bg-amber-200 transition-colors">
-                      <svg
-                        className="w-6 h-6 md:w-8 md:h-8 text-amber-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                  <h3 className="font-bold text-gray-800 text-base md:text-lg mb-1 md:mb-2">
-                    Select Safari Package
-                  </h3>
-                  <p className="text-gray-500 text-xs md:text-sm">
-                    Choose a safari route and customize your itinerary
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Step 3 */}
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-amber-200 hover:shadow-xl transition-all duration-300 group">
-              <div className="relative p-4 md:p-6">
-                <div className="absolute -top-3 -left-3 w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-amber-600 to-amber-700 rounded-full flex items-center justify-center shadow-lg z-10 group-hover:scale-110 transition-transform duration-300">
-                  <span className="text-white font-bold text-xl md:text-3xl">
-                    3
-                  </span>
-                </div>
-                <div className="pl-8 md:pl-10 pt-2 text-center sm:text-left">
-                  <div className="mb-3 flex justify-center sm:justify-start">
-                    <div className="w-12 h-12 md:w-16 md:h-16 bg-amber-100 rounded-full flex items-center justify-center group-hover:bg-amber-200 transition-colors">
-                      <svg
-                        className="w-6 h-6 md:w-8 md:h-8 text-amber-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                  <h3 className="font-bold text-gray-800 text-base md:text-lg mb-1 md:mb-2">
-                    Book & Confirm
-                  </h3>
-                  <p className="text-gray-500 text-xs md:text-sm">
-                    Secure your spot with our easy booking process
-                  </p>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Attraction Details Modal */}
+      {/* MODALS */}
+      {/* Attraction Modal */}
       {showAttractionModal && selectedAttraction && (
         <div
           className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50"
           onClick={handleBackdropClick}
         >
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto animate-fadeIn">
-            <div className="relative">
-              <div className="relative h-64 md:h-80 overflow-hidden rounded-t-2xl">
-                <img
-                  src={selectedAttraction.image}
-                  alt={selectedAttraction.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) =>
-                    handleImageError(e, selectedAttraction.fallback)
-                  }
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"></div>
-                <button
-                  onClick={() => setShowAttractionModal(false)}
-                  className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-all duration-300 z-10"
-                >
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-                <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-                  <h2 className="text-2xl md:text-3xl font-bold mb-2">
-                    {selectedAttraction.name}
-                  </h2>
-                  <div className="flex flex-wrap gap-3">
-                    <span className="bg-amber-600/80 backdrop-blur-sm text-white text-sm px-3 py-1 rounded-full">
-                      ⭐ {selectedAttraction.highlight}
-                    </span>
-                    <span className="bg-amber-700/80 backdrop-blur-sm text-white text-sm px-3 py-1 rounded-full">
-                      📅 Best: {selectedAttraction.bestTime}
-                    </span>
-                  </div>
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
+            <div className="relative h-64 md:h-80 overflow-hidden rounded-t-2xl">
+              <img
+                src={selectedAttraction.image}
+                alt={selectedAttraction.name}
+                className="w-full h-full object-cover"
+              />
+              <button
+                onClick={() => setShowAttractionModal(false)}
+                className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white rounded-full p-2"
+              >
+                ✕
+              </button>
+              <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                <h2 className="text-2xl md:text-3xl font-bold">
+                  {selectedAttraction.name}
+                </h2>
+                <div className="flex gap-3 mt-2">
+                  <span className="bg-amber-600/80 text-white text-sm px-3 py-1 rounded-full">
+                    ⭐ {selectedAttraction.highlight}
+                  </span>
+                  <span className="bg-amber-700/80 text-white text-sm px-3 py-1 rounded-full">
+                    📅 {selectedAttraction.bestTime}
+                  </span>
                 </div>
-              </div>
-
-              <div className="p-6">
-                <div className="mb-6">
-                  <h3 className="text-xl font-bold text-gray-800 mb-3 flex items-center gap-2">
-                    <svg
-                      className="w-6 h-6 text-amber-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    About This Attraction
-                  </h3>
-                  <p className="text-gray-700 leading-relaxed">
-                    {selectedAttraction.details ||
-                      selectedAttraction.description}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="bg-amber-50 rounded-lg p-4 text-center">
-                    <svg
-                      className="w-8 h-8 text-amber-600 mx-auto mb-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                    <p className="text-sm text-gray-600">Best Time</p>
-                    <p className="font-semibold text-amber-600">
-                      {selectedAttraction.bestTime}
-                    </p>
-                  </div>
-                  <div className="bg-amber-50 rounded-lg p-4 text-center">
-                    <svg
-                      className="w-8 h-8 text-amber-600 mx-auto mb-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-                      />
-                    </svg>
-                    <p className="text-sm text-gray-600">Highlight</p>
-                    <p className="font-semibold text-amber-600">
-                      {selectedAttraction.highlight}
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setShowAttractionModal(false)}
-                  className="w-full bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white py-3 rounded-xl font-semibold transition-all duration-300"
-                >
-                  Close
-                </button>
               </div>
             </div>
+            <div className="p-6">
+              <p className="text-gray-700">
+                {selectedAttraction.details || selectedAttraction.description}
+              </p>
+              <button
+                onClick={() => setShowAttractionModal(false)}
+                className="w-full bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 rounded-xl font-semibold mt-4"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Price Modal */}
+      {showPriceModal && selectedRouteForPricing && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50"
+          onClick={handleBackdropClick}
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+            <h2 className="text-2xl font-bold mb-4">
+              Select Travelers & Price
+            </h2>
+            <p className="text-gray-600 mb-6">{selectedRouteForPricing.name}</p>
+            <div className="space-y-3 mb-6">
+              {selectedRouteForPricing.priceOptions?.map((o) => (
+                <button
+                  key={o.people}
+                  onClick={() => handleFinalPriceSelect(o.people)}
+                  className="w-full flex justify-between items-center p-4 border rounded-lg hover:border-amber-500 hover:bg-amber-50"
+                >
+                  <span className="font-semibold">{o.people} Travelers</span>
+                  <span className="text-amber-600 font-bold text-xl">
+                    €{o.price}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowPriceModal(false)}
+              className="w-full bg-gray-300 text-gray-700 py-3 rounded-xl font-semibold"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Lodge Modal */}
+      {showLodgeModal && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
+          onClick={handleBackdropClick}
+        >
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white p-6 flex justify-between items-center border-b">
+              <h2 className="text-2xl font-bold">Select Your Amboseli Lodge</h2>
+              <button
+                onClick={() => setShowLodgeModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              {amboseliLodges.map((lodge) => (
+                <div
+                  key={lodge.name}
+                  className="border rounded-xl overflow-hidden hover:shadow-xl cursor-pointer"
+                  onClick={() => handleLodgeSelection(lodge)}
+                >
+                  <img
+                    src={lodge.image}
+                    alt={lodge.name}
+                    className="w-full h-48 object-cover"
+                    onError={(e) => handleImageError(e, lodge.fallbackImage)}
+                  />
+                  <div className="p-4">
+                    <h3 className="font-bold text-lg">{lodge.name}</h3>
+                    <p className="text-gray-600 text-sm mb-2">
+                      {lodge.description?.substring(0, 100)}...
+                    </p>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {lodge.features.map((f, i) => (
+                        <span
+                          key={i}
+                          className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded"
+                        >
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-amber-600 font-bold">
+                        {lodge.priceRange}
+                      </span>
+                      <button className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm">
+                        Select
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Booking Modal */}
+      {showBookingModal && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
+          onClick={handleBackdropClick}
+        >
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white p-6 flex justify-between items-center border-b">
+              <h2 className="text-2xl font-bold">Complete Your Booking</h2>
+              <button onClick={() => setShowBookingModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold mb-2">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="fullName"
+                    value={bookingForm.fullName}
+                    onChange={handleFormChange}
+                    required
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-2">Email *</label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={bookingForm.email}
+                    onChange={handleFormChange}
+                    required
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-2">Phone *</label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={bookingForm.phone}
+                    onChange={handleFormChange}
+                    required
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-2">Start Date</label>
+                  <input
+                    type="date"
+                    name="startDate"
+                    value={bookingForm.startDate}
+                    onChange={handleFormChange}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block font-semibold mb-2">Message</label>
+                <textarea
+                  name="message"
+                  value={bookingForm.message}
+                  onChange={handleFormChange}
+                  rows="3"
+                  className="w-full px-4 py-2 border rounded-lg"
+                ></textarea>
+              </div>
+              <div className="bg-amber-50 p-4 rounded-lg">
+                <h3 className="font-bold mb-2">Booking Summary</h3>
+                <p className="text-sm">
+                  <strong>Lodge:</strong> {selectedLodge?.name}
+                </p>
+                <p className="text-sm">
+                  <strong>Route:</strong> {selectedRoute?.name}
+                </p>
+                <p className="text-sm">
+                  <strong>Travelers:</strong> {bookingForm.travelers} pax
+                </p>
+                <p className="text-sm">
+                  <strong>Total:</strong> €
+                  {calculatePrice(bookingForm.travelers, selectedRoute)}
+                </p>
+              </div>
+              <div className="flex gap-4">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 rounded-xl font-semibold"
+                >
+                  {isLoading ? "Processing..." : "Confirm Booking"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBookingModal(false)}
+                  className="flex-1 bg-gray-300 py-3 rounded-xl font-semibold"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Gallery Modal */}
+      {showGalleryModal && (
+        <div
+          className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-50"
+          onClick={handleBackdropClick}
+        >
+          <div className="relative w-full max-w-5xl mx-4">
+            <button
+              onClick={() => setShowGalleryModal(false)}
+              className="absolute -top-12 right-0 text-white"
+            >
+              ✕
+            </button>
+            <div className="relative">
+              <img
+                src={galleryImages[activeGalleryImage].src}
+                alt={galleryImages[activeGalleryImage].title}
+                className="w-full max-h-[70vh] object-contain rounded-lg"
+              />
+              <button
+                onClick={prevGalleryImage}
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full"
+              >
+                ←
+              </button>
+              <button
+                onClick={nextGalleryImage}
+                className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full"
+              >
+                →
+              </button>
+            </div>
+            <div className="mt-4 text-center text-white">
+              <h3 className="text-xl font-bold">
+                {galleryImages[activeGalleryImage].title}
+              </h3>
+              <p className="text-gray-300">
+                {galleryImages[activeGalleryImage].description}
+              </p>
+              <p className="text-sm text-gray-400 mt-2">
+                {activeGalleryImage + 1} of {galleryImages.length}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Create Form Modal */}
+      {showAdminForm && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
+          onClick={handleBackdropClick}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-white p-6 flex justify-between items-center border-b">
+              <h2 className="text-2xl font-bold">Create New Safari Package</h2>
+              <button onClick={() => setShowAdminForm(false)}>✕</button>
+            </div>
+            <form onSubmit={handleAdminSubmit} className="p-6 space-y-6">
+              <div>
+                <label className="block font-semibold mb-2">
+                  Package Name *
+                </label>
+                <input
+                  type="text"
+                  name="routeName"
+                  value={adminForm.routeName}
+                  onChange={handleAdminFormChange}
+                  placeholder="e.g., 3-Day Amboseli Safari"
+                  className="w-full px-4 py-2 border rounded-lg focus:border-amber-500"
+                  required
+                />
+                <p className="text-xs text-amber-600 mt-1">
+                  🐘 "Amboseli → " will be added automatically
+                </p>
+              </div>
+              <div>
+                <label className="block font-semibold mb-2">
+                  Description *
+                </label>
+                <textarea
+                  name="description"
+                  value={adminForm.description}
+                  onChange={handleAdminFormChange}
+                  rows="3"
+                  className="w-full px-4 py-2 border rounded-lg"
+                  required
+                ></textarea>
+              </div>
+              <div>
+                <label className="block font-semibold mb-2">Duration</label>
+                <input
+                  type="text"
+                  name="duration"
+                  value={adminForm.duration}
+                  onChange={handleAdminFormChange}
+                  className="w-full px-4 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold mb-2">
+                  Highlights (comma separated)
+                </label>
+                <input
+                  type="text"
+                  name="highlights"
+                  value={adminForm.highlights}
+                  onChange={handleAdminFormChange}
+                  className="w-full px-4 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold mb-2">Itinerary</label>
+                <textarea
+                  name="itinerary"
+                  value={adminForm.itinerary}
+                  onChange={handleAdminFormChange}
+                  rows="4"
+                  className="w-full px-4 py-2 border rounded-lg"
+                ></textarea>
+              </div>
+              <div>
+                <label className="block font-semibold mb-2">
+                  Price Options
+                </label>
+                {adminForm.priceOptions.map((o, i) => (
+                  <div key={i} className="flex gap-2 mb-2">
+                    <input
+                      type="number"
+                      placeholder="People"
+                      value={o.people}
+                      onChange={(e) =>
+                        handlePriceOptionChange(i, "people", e.target.value)
+                      }
+                      className="w-1/3 px-3 py-2 border rounded-lg"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Price (€)"
+                      value={o.price}
+                      onChange={(e) =>
+                        handlePriceOptionChange(i, "price", e.target.value)
+                      }
+                      className="w-1/3 px-3 py-2 border rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePriceOption(i)}
+                      className="bg-red-500 text-white px-3 py-2 rounded-lg"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addPriceOption}
+                  className="mt-2 bg-amber-600 text-white px-4 py-2 rounded-lg"
+                >
+                  + Add Price Option
+                </button>
+              </div>
+              <div className="flex gap-4">
+                <button
+                  type="submit"
+                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 rounded-xl font-semibold"
+                >
+                  Create Package
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAdminForm(false)}
+                  className="flex-1 bg-gray-300 py-3 rounded-xl font-semibold"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Form Modal */}
+      {showEditModal && editingRoute && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
+          onClick={handleBackdropClick}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-white p-6 flex justify-between items-center border-b">
+              <h2 className="text-2xl font-bold">Edit Safari Package</h2>
+              <button onClick={() => setShowEditModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleUpdatePackage} className="p-6 space-y-6">
+              <div>
+                <label className="block font-semibold mb-2">
+                  Package Name *
+                </label>
+                <input
+                  type="text"
+                  name="routeName"
+                  value={adminForm.routeName}
+                  onChange={handleAdminFormChange}
+                  className="w-full px-4 py-2 border rounded-lg"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-semibold mb-2">
+                  Description *
+                </label>
+                <textarea
+                  name="description"
+                  value={adminForm.description}
+                  onChange={handleAdminFormChange}
+                  rows="3"
+                  className="w-full px-4 py-2 border rounded-lg"
+                  required
+                ></textarea>
+              </div>
+              <div>
+                <label className="block font-semibold mb-2">Duration</label>
+                <input
+                  type="text"
+                  name="duration"
+                  value={adminForm.duration}
+                  onChange={handleAdminFormChange}
+                  className="w-full px-4 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold mb-2">Highlights</label>
+                <input
+                  type="text"
+                  name="highlights"
+                  value={adminForm.highlights}
+                  onChange={handleAdminFormChange}
+                  className="w-full px-4 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold mb-2">Itinerary</label>
+                <textarea
+                  name="itinerary"
+                  value={adminForm.itinerary}
+                  onChange={handleAdminFormChange}
+                  rows="4"
+                  className="w-full px-4 py-2 border rounded-lg"
+                ></textarea>
+              </div>
+              <div>
+                <label className="block font-semibold mb-2">
+                  Price Options
+                </label>
+                {adminForm.priceOptions.map((o, i) => (
+                  <div key={i} className="flex gap-2 mb-2">
+                    <input
+                      type="number"
+                      placeholder="People"
+                      value={o.people}
+                      onChange={(e) =>
+                        handlePriceOptionChange(i, "people", e.target.value)
+                      }
+                      className="w-1/3 px-3 py-2 border rounded-lg"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Price (€)"
+                      value={o.price}
+                      onChange={(e) =>
+                        handlePriceOptionChange(i, "price", e.target.value)
+                      }
+                      className="w-1/3 px-3 py-2 border rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePriceOption(i)}
+                      className="bg-red-500 text-white px-3 py-2 rounded-lg"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addPriceOption}
+                  className="mt-2 bg-amber-600 text-white px-4 py-2 rounded-lg"
+                >
+                  + Add Price Option
+                </button>
+              </div>
+              <div className="flex gap-4">
+                <button
+                  type="submit"
+                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 rounded-xl font-semibold"
+                >
+                  Update Package
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 bg-gray-300 py-3 rounded-xl font-semibold"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -2670,18 +2032,6 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
         .collapsible-content.open {
           max-height: 5000px;
           transition: max-height 0.7s ease-in;
-        }
-        .line-clamp-1 {
-          display: -webkit-box;
-          -webkit-line-clamp: 1;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-        .line-clamp-2 {
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
         }
         @keyframes fadeIn {
           from {
@@ -2697,708 +2047,6 @@ ${parkInfo.highlights.map((highlight) => `• ${highlight}`).join("\n")}
           animation: fadeIn 0.2s ease-out;
         }
       `}</style>
-
-      {/* CREATE PACKAGE ADMIN FORM MODAL */}
-      {showAdminForm && (
-        <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
-          onClick={handleBackdropClick}
-        >
-          <div
-            className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">
-                Create New Safari Package
-              </h2>
-              <button
-                onClick={() => setShowAdminForm(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <form onSubmit={handleAdminSubmit} className="p-6 space-y-6">
-              <div>
-                <label className="block text-gray-700 font-semibold mb-2">
-                  Package Name *
-                </label>
-                <input
-                  type="text"
-                  name="routeName"
-                  value={adminForm.routeName}
-                  onChange={handleAdminFormChange}
-                  placeholder="e.g., 3-Day Amboseli Safari Adventure"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                  required
-                />
-                <p className="text-xs text-amber-600 mt-1 font-semibold">
-                  🐘 "Amboseli → " will be added automatically if not included
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-semibold mb-2">
-                  Description *
-                </label>
-                <textarea
-                  name="description"
-                  value={adminForm.description}
-                  onChange={handleAdminFormChange}
-                  rows="3"
-                  placeholder="Describe the safari experience, key features, and what makes it special..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                  required
-                ></textarea>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-semibold mb-2">
-                  Duration
-                </label>
-                <input
-                  type="text"
-                  name="duration"
-                  value={adminForm.duration}
-                  onChange={handleAdminFormChange}
-                  placeholder="e.g., 3-5 days recommended"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-semibold mb-2">
-                  Highlights (comma separated)
-                </label>
-                <input
-                  type="text"
-                  name="highlights"
-                  value={adminForm.highlights}
-                  onChange={handleAdminFormChange}
-                  placeholder="e.g., Kilimanjaro Views, Elephant Herds, Bird Watching"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-semibold mb-2">
-                  Full Itinerary
-                </label>
-                <textarea
-                  name="itinerary"
-                  value={adminForm.itinerary}
-                  onChange={handleAdminFormChange}
-                  rows="4"
-                  placeholder="Day by day itinerary details..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                ></textarea>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-semibold mb-2">
-                  Price Options
-                </label>
-                {adminForm.priceOptions.map((option, index) => (
-                  <div key={index} className="flex gap-2 mb-2">
-                    <input
-                      type="number"
-                      placeholder="People"
-                      value={option.people}
-                      onChange={(e) =>
-                        handlePriceOptionChange(index, "people", e.target.value)
-                      }
-                      className="w-1/3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                    />
-                    <input
-                      type="number"
-                      placeholder="Price (€)"
-                      value={option.price}
-                      onChange={(e) =>
-                        handlePriceOptionChange(index, "price", e.target.value)
-                      }
-                      className="w-1/3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removePriceOption(index)}
-                      className="bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={addPriceOption}
-                  className="mt-2 bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700"
-                >
-                  + Add Price Option
-                </button>
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 rounded-xl font-semibold hover:from-amber-700 hover:to-amber-800 transition-all duration-300"
-                >
-                  Create Package
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAdminForm(false)}
-                  className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-400 transition-all duration-300"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* EDIT PACKAGE MODAL */}
-      {showEditModal && editingRoute && (
-        <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
-          onClick={handleBackdropClick}
-        >
-          <div
-            className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">
-                Edit Safari Package
-              </h2>
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <form onSubmit={handleUpdatePackage} className="p-6 space-y-6">
-              <div>
-                <label className="block text-gray-700 font-semibold mb-2">
-                  Package Name *
-                </label>
-                <input
-                  type="text"
-                  name="routeName"
-                  value={adminForm.routeName}
-                  onChange={handleAdminFormChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-semibold mb-2">
-                  Description *
-                </label>
-                <textarea
-                  name="description"
-                  value={adminForm.description}
-                  onChange={handleAdminFormChange}
-                  rows="3"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                  required
-                ></textarea>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-semibold mb-2">
-                  Duration
-                </label>
-                <input
-                  type="text"
-                  name="duration"
-                  value={adminForm.duration}
-                  onChange={handleAdminFormChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-semibold mb-2">
-                  Highlights (comma separated)
-                </label>
-                <input
-                  type="text"
-                  name="highlights"
-                  value={adminForm.highlights}
-                  onChange={handleAdminFormChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-semibold mb-2">
-                  Full Itinerary
-                </label>
-                <textarea
-                  name="itinerary"
-                  value={adminForm.itinerary}
-                  onChange={handleAdminFormChange}
-                  rows="4"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                ></textarea>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-semibold mb-2">
-                  Price Options
-                </label>
-                {adminForm.priceOptions.map((option, index) => (
-                  <div key={index} className="flex gap-2 mb-2">
-                    <input
-                      type="number"
-                      placeholder="People"
-                      value={option.people}
-                      onChange={(e) =>
-                        handlePriceOptionChange(index, "people", e.target.value)
-                      }
-                      className="w-1/3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                    />
-                    <input
-                      type="number"
-                      placeholder="Price (€)"
-                      value={option.price}
-                      onChange={(e) =>
-                        handlePriceOptionChange(index, "price", e.target.value)
-                      }
-                      className="w-1/3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removePriceOption(index)}
-                      className="bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={addPriceOption}
-                  className="mt-2 bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700"
-                >
-                  + Add Price Option
-                </button>
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 rounded-xl font-semibold hover:from-amber-700 hover:to-amber-800 transition-all duration-300"
-                >
-                  Update Package
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-400 transition-all duration-300"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* PRICE SELECTION MODAL */}
-      {showPriceModal && selectedRouteForPricing && (
-        <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50"
-          onClick={handleBackdropClick}
-        >
-          <div className="bg-white rounded-2xl max-w-md w-full animate-fadeIn">
-            <div className="p-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">
-                Select Travelers & Price
-              </h2>
-              <p className="text-gray-600 mb-6">
-                Choose the number of travelers for{" "}
-                {selectedRouteForPricing.name}
-              </p>
-
-              <div className="space-y-3 mb-6">
-                {selectedRouteForPricing.priceOptions &&
-                selectedRouteForPricing.priceOptions.length > 0 ? (
-                  selectedRouteForPricing.priceOptions.map((option) => (
-                    <button
-                      key={option.people}
-                      onClick={() =>
-                        handleFinalPriceSelect(option.people, option.price)
-                      }
-                      className="w-full flex justify-between items-center p-4 border border-gray-200 rounded-lg hover:border-amber-500 hover:bg-amber-50 transition-all duration-300"
-                    >
-                      <span className="font-semibold text-gray-800">
-                        {option.people}{" "}
-                        {option.people === 1 ? "Traveler" : "Travelers"}
-                      </span>
-                      <span className="text-amber-600 font-bold text-xl">
-                        €{option.price}
-                      </span>
-                    </button>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    No price options available for this package.
-                  </div>
-                )}
-              </div>
-
-              <button
-                onClick={() => setShowPriceModal(false)}
-                className="w-full bg-gray-300 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-400 transition-all duration-300"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* LODGE SELECTION MODAL */}
-      {showLodgeModal && (
-        <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
-          onClick={handleBackdropClick}
-        >
-          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">
-                Select Your Amboseli Lodge
-              </h2>
-              <button
-                onClick={() => setShowLodgeModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {amboseliLodges.map((lodge) => (
-                  <div
-                    key={lodge.name}
-                    className="border border-gray-200 rounded-xl overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer"
-                    onClick={() => handleLodgeSelection(lodge)}
-                  >
-                    <img
-                      src={lodge.image}
-                      alt={lodge.name}
-                      className="w-full h-48 object-cover"
-                      onError={(e) => handleImageError(e, lodge.fallbackImage)}
-                    />
-                    <div className="p-4">
-                      <h3 className="font-bold text-lg text-gray-800 mb-1">
-                        {lodge.name}
-                      </h3>
-                      <p className="text-gray-600 text-sm mb-2">
-                        {lodge.description.substring(0, 100)}...
-                      </p>
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {lodge.features.map((feature, idx) => (
-                          <span
-                            key={idx}
-                            className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded"
-                          >
-                            {feature}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-amber-600 font-bold">
-                          {lodge.priceRange}
-                        </span>
-                        <button className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700 transition-colors">
-                          Select This Lodge
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* BOOKING MODAL */}
-      {showBookingModal && (
-        <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
-          onClick={handleBackdropClick}
-        >
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">
-                Complete Your Booking
-              </h2>
-              <button
-                onClick={() => setShowBookingModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-gray-700 font-semibold mb-2">
-                    Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="fullName"
-                    value={bookingForm.fullName}
-                    onChange={handleFormChange}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-700 font-semibold mb-2">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={bookingForm.email}
-                    onChange={handleFormChange}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-700 font-semibold mb-2">
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={bookingForm.phone}
-                    onChange={handleFormChange}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-700 font-semibold mb-2">
-                    Preferred Start Date
-                  </label>
-                  <input
-                    type="date"
-                    name="startDate"
-                    value={bookingForm.startDate}
-                    onChange={handleFormChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-semibold mb-2">
-                  Additional Message / Special Requests
-                </label>
-                <textarea
-                  name="message"
-                  value={bookingForm.message}
-                  onChange={handleFormChange}
-                  rows="3"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-amber-500"
-                  placeholder="Any special requirements, photography interests, Kilimanjaro viewing preferences, or questions about elephant encounters..."
-                ></textarea>
-              </div>
-
-              <div className="bg-amber-50 p-4 rounded-lg">
-                <h3 className="font-bold text-gray-800 mb-2">
-                  Booking Summary
-                </h3>
-                <p className="text-sm text-gray-600">
-                  <strong>Selected Lodge:</strong> {selectedLodge?.name}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <strong>Selected Route:</strong> {selectedRoute?.name}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <strong>Travelers:</strong> {bookingForm.travelers} pax
-                </p>
-                <p className="text-sm text-gray-600">
-                  <strong>Estimated Total:</strong> €
-                  {calculatePrice(bookingForm.travelers, selectedRoute)}
-                </p>
-              </div>
-
-              <div className="flex gap-4">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 rounded-xl font-semibold hover:from-amber-700 hover:to-amber-800 transition-all duration-300 disabled:opacity-50"
-                >
-                  {isLoading ? "Processing..." : "Confirm Booking"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowBookingModal(false)}
-                  className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-400 transition-all duration-300"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* GALLERY MODAL */}
-      {showGalleryModal && (
-        <div
-          className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-50"
-          onClick={handleBackdropClick}
-        >
-          <div className="relative w-full max-w-5xl mx-4">
-            <button
-              onClick={() => setShowGalleryModal(false)}
-              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
-            >
-              <svg
-                className="w-8 h-8"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-
-            <div className="relative">
-              <img
-                src={galleryImages[activeGalleryImage].src}
-                alt={galleryImages[activeGalleryImage].title}
-                className="w-full h-auto max-h-[70vh] object-contain rounded-lg"
-                onError={(e) =>
-                  handleImageError(
-                    e,
-                    galleryImages[activeGalleryImage].fallback,
-                  )
-                }
-              />
-
-              <button
-                onClick={prevGalleryImage}
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all duration-300"
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 19l-7-7 7-7"
-                  />
-                </svg>
-              </button>
-
-              <button
-                onClick={nextGalleryImage}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all duration-300"
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <div className="mt-4 text-center text-white">
-              <h3 className="text-xl font-bold">
-                {galleryImages[activeGalleryImage].title}
-              </h3>
-              <p className="text-gray-300">
-                {galleryImages[activeGalleryImage].description}
-              </p>
-              <p className="text-sm text-gray-400 mt-2">
-                {activeGalleryImage + 1} of {galleryImages.length}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
