@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import Swal from "sweetalert2";
 
-// Backend API base URL for booking emails
+// Backend API base URL
 const API_BASE_URL = "https://joz-tours-backend-2026.onrender.com/api";
 
 const Amboseli = () => {
@@ -34,6 +34,8 @@ const Amboseli = () => {
   const [selectedRouteForPricing, setSelectedRouteForPricing] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingRoute, setEditingRoute] = useState(null);
+  const [loadingPackages, setLoadingPackages] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [collapsedSections, setCollapsedSections] = useState({
     parkInfo: false,
@@ -48,81 +50,87 @@ const Amboseli = () => {
   const toggleCardExpand = (cardId) =>
     setExpandedCards((prev) => ({ ...prev, [cardId]: !prev[cardId] }));
 
-  // ============ PACKAGES WITH LOCALSTORAGE PERSISTENCE ============
-  const [safariRoutes, setSafariRoutes] = useState(() => {
-    const savedPackages = localStorage.getItem("amboseliPackages");
-    if (savedPackages) {
-      try {
-        return JSON.parse(savedPackages);
-      } catch (error) {
-        console.error("Error loading saved packages:", error);
+  // ============ DATABASE PACKAGES ============
+  const [safariRoutes, setSafariRoutes] = useState([]);
+
+  // Fetch packages from PostgreSQL with loading spinner
+  const fetchPackagesFromDatabase = async () => {
+    setLoadingPackages(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/safari-cards`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          // Filter only Amboseli packages
+          const amboseliPackages = data.data.filter(pkg =>
+            pkg.name && pkg.name.toLowerCase().includes('amboseli')
+          );
+          // Convert backend format to frontend format
+          const formattedPackages = amboseliPackages.map(pkg => ({
+            id: pkg.id,
+            name: pkg.name,
+            description: pkg.description || '',
+            duration: `${pkg.total_days || 3}-${(pkg.total_days || 3) + 2} days recommended`,
+            highlights: pkg.highlights || [],
+            fullItinerary: pkg.fullitinerary || '',
+            priceOptions: pkg.priceoptions || [
+              { people: 2, price: 350, currency: "euro" },
+              { people: 4, price: 240, currency: "euro" },
+              { people: 6, price: 180, currency: "euro" },
+              { people: 8, price: 150, currency: "euro" },
+            ],
+            priceRange: pkg.pricerange || { min: 150, max: 350 },
+          }));
+          setSafariRoutes(formattedPackages);
+          
+          // Show success notification if packages loaded
+          if (formattedPackages.length > 0) {
+            Swal.fire({
+              icon: 'success',
+              title: 'Packages Loaded!',
+              text: `Successfully loaded ${formattedPackages.length} Amboseli packages from database.`,
+              timer: 2000,
+              timerProgressBar: true,
+              showConfirmButton: false,
+              toast: true,
+              position: 'top-end',
+            });
+          }
+        }
+      } else {
+        throw new Error('Failed to fetch packages');
       }
+    } catch (error) {
+      console.error('Error fetching packages:', error);
+      if (isAuthenticated) {
+        Swal.fire({
+          title: "⚠️ Connection Error",
+          text: "Could not fetch packages from the database. Please check your connection.",
+          icon: "error",
+          confirmButtonColor: "#d97706",
+          confirmButtonText: "Try Again",
+        }).then(() => {
+          fetchPackagesFromDatabase();
+        });
+      }
+    } finally {
+      setLoadingPackages(false);
     }
-    // Default packages
-    return [
-      {
-        id: 1,
-        name: "Amboseli → 3-Day Elephant & Kilimanjaro Safari",
-        description:
-          "Experience the best of Amboseli with stunning Kilimanjaro views and close encounters with large elephant herds.",
-        duration: "3-5 days recommended",
-        highlights: ["Kilimanjaro Views", "Elephant Herds", "Swamp Ecosystems"],
-        fullItinerary:
-          "Day 1: Arrival and afternoon game drive. Day 2: Full day exploring swamps and plains. Day 3: Sunrise Kilimanjaro views and departure.",
-        priceOptions: [
-          { people: 2, price: 350, currency: "euro" },
-          { people: 4, price: 240, currency: "euro" },
-          { people: 6, price: 180, currency: "euro" },
-          { people: 8, price: 150, currency: "euro" },
-        ],
-        priceRange: { min: 150, max: 350 },
-      },
-      {
-        id: 2,
-        name: "Amboseli → 5-Day Ultimate Kilimanjaro Experience",
-        description:
-          "Extended safari with premium Kilimanjaro viewing, elephant tracking, and cultural experiences.",
-        duration: "5-7 days recommended",
-        highlights: ["Elephant Research", "Maasai Culture", "Photography"],
-        fullItinerary:
-          "Day 1: Arrival and sunset views. Day 2-4: Game drives exploring different ecosystems. Day 5: Sunrise Kilimanjaro and departure.",
-        priceOptions: [
-          { people: 2, price: 580, currency: "euro" },
-          { people: 4, price: 420, currency: "euro" },
-          { people: 6, price: 320, currency: "euro" },
-          { people: 8, price: 260, currency: "euro" },
-        ],
-        priceRange: { min: 260, max: 580 },
-      },
-    ];
-  });
-
-  // Save to localStorage whenever packages change
-  useEffect(() => {
-    localStorage.setItem("amboseliPackages", JSON.stringify(safariRoutes));
-  }, [safariRoutes]);
-
-  const [adminForm, setAdminForm] = useState({
-    routeName: "",
-    description: "",
-    duration: "3-5 days recommended",
-    highlights: "",
-    itinerary: "",
-    priceOptions: [
-      { people: 2, price: 350, currency: "euro" },
-      { people: 3, price: 280, currency: "euro" },
-      { people: 4, price: 240, currency: "euro" },
-      { people: 5, price: 200, currency: "euro" },
-      { people: 6, price: 180, currency: "euro" },
-      { people: 7, price: 160, currency: "euro" },
-      { people: 8, price: 150, currency: "euro" },
-    ],
-  });
-
-  const isAmboseliPackage = (route) => {
-    if (!route || !route.name) return false;
-    return route.name.toLowerCase().startsWith("amboseli");
   };
+
+  // Load packages on mount
+  useEffect(() => {
+    fetchPackagesFromDatabase();
+  }, []);
+
+  // Filter packages
+  useEffect(() => {
+    const filtered = safariRoutes.filter((route) =>
+      route.name && route.name.toLowerCase().includes('amboseli')
+    );
+    setFilteredSafariRoutes(filtered);
+    setShowAllPackages(false);
+  }, [safariRoutes]);
 
   // Check authentication
   useEffect(() => {
@@ -146,13 +154,6 @@ const Amboseli = () => {
       window.removeEventListener("storage", handleAuthChange);
     };
   }, []);
-
-  // Filter packages
-  useEffect(() => {
-    const filtered = safariRoutes.filter((route) => isAmboseliPackage(route));
-    setFilteredSafariRoutes(filtered);
-    setShowAllPackages(false);
-  }, [safariRoutes]);
 
   // Check existing lodge selection
   useEffect(() => {
@@ -419,14 +420,69 @@ const Amboseli = () => {
     },
   ];
 
-  // ============ ADMIN CRUD FUNCTIONS ============
+  const [adminForm, setAdminForm] = useState({
+    routeName: "",
+    description: "",
+    duration: "3-5 days recommended",
+    highlights: "",
+    itinerary: "",
+    priceOptions: [
+      { people: 2, price: 350, currency: "euro" },
+      { people: 3, price: 280, currency: "euro" },
+      { people: 4, price: 240, currency: "euro" },
+      { people: 5, price: 200, currency: "euro" },
+      { people: 6, price: 180, currency: "euro" },
+      { people: 7, price: 160, currency: "euro" },
+      { people: 8, price: 150, currency: "euro" },
+    ],
+  });
+
+  // ============ ADMIN CRUD FUNCTIONS WITH SWEETALERT ============
+
+  const showLoadingSpinner = (message = "Please wait...") => {
+    Swal.fire({
+      title: message,
+      allowOutsideClick: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+  };
+
+  const showSuccessNotification = (title, message, icon = "success") => {
+    Swal.fire({
+      title: title,
+      text: message,
+      icon: icon,
+      timer: 3000,
+      timerProgressBar: true,
+      showConfirmButton: false,
+      toast: true,
+      position: 'top-end',
+      background: '#f0fdf4',
+      color: '#166534',
+    });
+  };
+
+  const showErrorNotification = (title, message) => {
+    Swal.fire({
+      title: title,
+      text: message,
+      icon: "error",
+      confirmButtonColor: "#d97706",
+      confirmButtonText: "OK",
+    });
+  };
+
   const handleEditPackage = (route) => {
     if (!isAuthenticated) {
       Swal.fire({
-        title: "Access Denied",
-        text: "Only administrators can edit packages.",
+        title: "🔒 Access Denied",
+        text: "Only administrators can edit packages. Please sign in as admin.",
         icon: "error",
         confirmButtonColor: "#d97706",
+        confirmButtonText: "OK",
       });
       return;
     }
@@ -438,59 +494,287 @@ const Amboseli = () => {
         .trim(),
       description: route.description,
       duration: route.duration,
-      highlights: route.highlights.join(", "),
+      highlights: route.highlights ? route.highlights.join(", ") : "",
       itinerary: route.fullItinerary || "",
-      priceOptions: [...route.priceOptions],
+      priceOptions: route.priceOptions ? [...route.priceOptions] : [
+        { people: 2, price: 350, currency: "euro" },
+        { people: 4, price: 240, currency: "euro" },
+        { people: 6, price: 180, currency: "euro" },
+        { people: 8, price: 150, currency: "euro" },
+      ],
     });
     setShowEditModal(true);
   };
 
-  const handleUpdatePackage = (e) => {
+  const handleUpdatePackage = async (e) => {
     e.preventDefault();
+    
     const routeName = adminForm.routeName.toLowerCase().startsWith("amboseli")
       ? adminForm.routeName
       : `Amboseli → ${adminForm.routeName}`;
-    if (!routeName.toLowerCase().startsWith("amboseli")) {
-      Swal.fire({
-        title: "Invalid Package Name",
-        text: "Must start with 'Amboseli'.",
-        icon: "error",
-        confirmButtonColor: "#d97706",
-      });
+    
+    if (!routeName.toLowerCase().includes("amboseli")) {
+      showErrorNotification("⚠️ Invalid Package Name", "Package name must include 'Amboseli'.");
       return;
     }
+
+    // Show loading spinner
+    showLoadingSpinner("⏳ Updating package...");
+
     const prices = adminForm.priceOptions.map((o) => o.price);
     const highlightsArray = adminForm.highlights
       .split(",")
       .map((h) => h.trim())
       .filter((h) => h.length > 0);
-    setSafariRoutes((prev) =>
-      prev.map((route) =>
-        route.id === editingRoute.id
-          ? {
-              ...route,
-              name: routeName,
-              description: adminForm.description,
-              duration: adminForm.duration,
-              highlights: highlightsArray,
-              fullItinerary: adminForm.itinerary,
-              priceOptions: [...adminForm.priceOptions],
-              priceRange: {
-                min: Math.min(...prices),
-                max: Math.max(...prices),
-              },
-            }
-          : route,
-      ),
-    );
+
+    const updatedPackage = {
+      name: routeName,
+      description: adminForm.description,
+      total_days: parseInt(adminForm.duration) || 3,
+      total_nights: parseInt(adminForm.duration) - 1 || 2,
+      highlights: highlightsArray,
+      fullitinerary: adminForm.itinerary,
+      priceoptions: adminForm.priceOptions,
+      pricerange: {
+        min: Math.min(...prices),
+        max: Math.max(...prices),
+      },
+      includes: ["Park fees", "Game drives", "Accommodation"],
+      excludes: ["International flights", "Tips", "Personal items"],
+    };
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/safari-cards/${editingRoute.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+        },
+        body: JSON.stringify(updatedPackage),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        Swal.close(); // Close loading spinner
+        Swal.fire({
+          title: "✅ Package Updated Successfully!",
+          html: `
+            <div style="text-align: left; padding: 10px;">
+              <p style="font-size: 18px; font-weight: bold; color: #166534;">${routeName}</p>
+              <div style="background: #f0fdf4; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                <p><strong>📅 Duration:</strong> ${adminForm.duration}</p>
+                <p><strong>💰 Price Range:</strong> €${Math.min(...prices)} - €${Math.max(...prices)}</p>
+                <p><strong>🏷️ Highlights:</strong> ${highlightsArray.slice(0, 3).join(', ')}${highlightsArray.length > 3 ? '...' : ''}</p>
+              </div>
+            </div>
+          `,
+          icon: "success",
+          confirmButtonColor: "#d97706",
+          confirmButtonText: "Great!",
+          timer: 4000,
+        });
+        await fetchPackagesFromDatabase();
+        setShowEditModal(false);
+        setEditingRoute(null);
+      } else {
+        throw new Error(result.error || "Failed to update package");
+      }
+    } catch (error) {
+      console.error("Error updating package:", error);
+      Swal.close();
+      showErrorNotification("❌ Update Failed", "Could not update the package in the database. Please try again.");
+    }
+  };
+
+  const handleAdminSubmit = async (e) => {
+    e.preventDefault();
+    
+    const routeName = adminForm.routeName.toLowerCase().startsWith("amboseli")
+      ? adminForm.routeName
+      : `Amboseli → ${adminForm.routeName}`;
+    
+    if (!routeName.toLowerCase().includes("amboseli")) {
+      showErrorNotification("⚠️ Invalid Package Name", "Package name must include 'Amboseli'.");
+      return;
+    }
+
+    // Show loading spinner with progress
+    showLoadingSpinner("⏳ Creating your safari package...");
+
+    const prices = adminForm.priceOptions.map((o) => o.price);
+    const highlightsArray = adminForm.highlights
+      .split(",")
+      .map((h) => h.trim())
+      .filter((h) => h.length > 0);
+
+    const newPackage = {
+      name: routeName,
+      description: adminForm.description,
+      total_days: parseInt(adminForm.duration) || 3,
+      total_nights: parseInt(adminForm.duration) - 1 || 2,
+      highlights: highlightsArray,
+      fullitinerary: adminForm.itinerary,
+      priceoptions: adminForm.priceOptions,
+      pricerange: {
+        min: Math.min(...prices),
+        max: Math.max(...prices),
+      },
+      includes: ["Park fees", "Game drives", "Accommodation"],
+      excludes: ["International flights", "Tips", "Personal items"],
+    };
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/safari-cards`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+        },
+        body: JSON.stringify(newPackage),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        Swal.close(); // Close loading spinner
+        
+        // Beautiful success notification
+        Swal.fire({
+          title: "🎉 Package Created Successfully!",
+          html: `
+            <div style="text-align: left; padding: 10px;">
+              <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                <p style="font-size: 20px; font-weight: bold; color: #92400e; margin: 0;">🐘 ${routeName}</p>
+              </div>
+              <div style="background: #f0fdf4; padding: 15px; border-radius: 8px;">
+                <p><strong>📅 Duration:</strong> ${adminForm.duration}</p>
+                <p><strong>💰 Price Range:</strong> €${Math.min(...prices)} - €${Math.max(...prices)}</p>
+                <p><strong>🏷️ Highlights:</strong></p>
+                <ul style="text-align: left; padding-left: 20px;">
+                  ${highlightsArray.map(h => `<li>${h}</li>`).join('')}
+                </ul>
+              </div>
+            </div>
+          `,
+          icon: "success",
+          confirmButtonColor: "#d97706",
+          confirmButtonText: "✨ View Package",
+          showCancelButton: true,
+          cancelButtonText: "Create Another",
+          cancelButtonColor: "#6b7280",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // Show the new package
+            setShowAllPackages(true);
+          }
+          // Refresh packages
+          fetchPackagesFromDatabase();
+        });
+        
+        // Reset form
+        setAdminForm({
+          routeName: "",
+          description: "",
+          duration: "3-5 days recommended",
+          highlights: "",
+          itinerary: "",
+          priceOptions: [
+            { people: 2, price: 350, currency: "euro" },
+            { people: 3, price: 280, currency: "euro" },
+            { people: 4, price: 240, currency: "euro" },
+            { people: 5, price: 200, currency: "euro" },
+            { people: 6, price: 180, currency: "euro" },
+            { people: 7, price: 160, currency: "euro" },
+            { people: 8, price: 150, currency: "euro" },
+          ],
+        });
+        setShowAdminForm(false);
+      } else {
+        throw new Error(result.error || "Failed to create package");
+      }
+    } catch (error) {
+      console.error("Error creating package:", error);
+      Swal.close();
+      showErrorNotification("❌ Creation Failed", "Could not save the package to the database. Please try again.");
+    }
+  };
+
+  const handleDeletePackage = async (routeId) => {
+    if (!isAuthenticated) {
+      Swal.fire({
+        title: "🔒 Access Denied",
+        text: "Only administrators can delete packages. Please sign in as admin.",
+        icon: "error",
+        confirmButtonColor: "#d97706",
+        confirmButtonText: "OK",
+      });
+      return;
+    }
+
+    // Find the package name for confirmation
+    const packageToDelete = safariRoutes.find(r => r.id === routeId);
+    const packageName = packageToDelete?.name || "this package";
+
     Swal.fire({
-      title: "✅ Package Updated!",
-      html: `<p><strong>${routeName}</strong> updated successfully.</p>`,
-      icon: "success",
-      confirmButtonColor: "#d97706",
+      title: "⚠️ Delete Package?",
+      html: `
+        <div style="text-align: left;">
+          <p style="font-size: 16px;">You are about to permanently delete:</p>
+          <div style="background: #fee2e2; padding: 15px; border-radius: 8px; margin: 10px 0;">
+            <p style="font-weight: bold; color: #991b1b; margin: 0;">${packageName}</p>
+          </div>
+          <p style="color: #6b7280; font-size: 14px;">This action cannot be undone. All associated data will be removed from the database.</p>
+        </div>
+      `,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "🗑️ Yes, Delete Permanently",
+      cancelButtonText: "Cancel",
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        // Show loading
+        showLoadingSpinner("⏳ Deleting package...");
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/safari-cards/${routeId}`, {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+            },
+          });
+
+          if (response.ok) {
+            Swal.close();
+            Swal.fire({
+              title: "🗑️ Package Deleted Successfully!",
+              html: `
+                <div style="padding: 10px;">
+                  <p style="font-size: 16px;">The package has been permanently removed from the database.</p>
+                  <div style="background: #fef2f2; padding: 10px; border-radius: 8px; margin-top: 10px;">
+                    <p style="color: #991b1b; font-weight: bold; margin: 0;">${packageName}</p>
+                  </div>
+                </div>
+              `,
+              icon: "success",
+              confirmButtonColor: "#d97706",
+              confirmButtonText: "OK",
+              timer: 3000,
+            });
+            await fetchPackagesFromDatabase();
+            if (selectedRoute?.id === routeId) setSelectedRoute(null);
+          } else {
+            throw new Error("Failed to delete package");
+          }
+        } catch (error) {
+          console.error("Error deleting package:", error);
+          Swal.close();
+          showErrorNotification("❌ Delete Failed", "Could not delete the package from the database. Please try again.");
+        }
+      }
     });
-    setShowEditModal(false);
-    setEditingRoute(null);
   };
 
   const handleAdminFormChange = (e) =>
@@ -509,10 +793,12 @@ const Amboseli = () => {
   const addPriceOption = () => {
     if (adminForm.priceOptions.length >= 7) {
       Swal.fire({
-        title: "Maximum Reached",
-        text: "Max 7 price options.",
+        title: "⚠️ Maximum Reached",
+        text: "You can only add up to 7 price options.",
         icon: "warning",
         confirmButtonColor: "#d97706",
+        confirmButtonText: "OK",
+        timer: 2000,
       });
       return;
     }
@@ -521,10 +807,12 @@ const Amboseli = () => {
     while (existing.includes(next) && next <= 8) next++;
     if (next > 8) {
       Swal.fire({
-        title: "Maximum Reached",
-        text: "Max 8 people.",
+        title: "⚠️ Maximum Reached",
+        text: "You can only add price options for up to 8 people.",
         icon: "warning",
         confirmButtonColor: "#d97706",
+        confirmButtonText: "OK",
+        timer: 2000,
       });
       return;
     }
@@ -540,10 +828,12 @@ const Amboseli = () => {
   const removePriceOption = (index) => {
     if (adminForm.priceOptions.length <= 2) {
       Swal.fire({
-        title: "Minimum Required",
-        text: "Need at least 2 options.",
+        title: "⚠️ Minimum Required",
+        text: "You need at least 2 price options.",
         icon: "warning",
         confirmButtonColor: "#d97706",
+        confirmButtonText: "OK",
+        timer: 2000,
       });
       return;
     }
@@ -553,103 +843,24 @@ const Amboseli = () => {
     });
   };
 
-  const handleAdminSubmit = (e) => {
-    e.preventDefault();
-    const routeName = adminForm.routeName.toLowerCase().startsWith("amboseli")
-      ? adminForm.routeName
-      : `Amboseli → ${adminForm.routeName}`;
-    if (!routeName.toLowerCase().startsWith("amboseli")) {
-      Swal.fire({
-        title: "Invalid",
-        text: "Must start with 'Amboseli'.",
-        icon: "error",
-        confirmButtonColor: "#d97706",
-      });
-      return;
-    }
-    const prices = adminForm.priceOptions.map((o) => o.price);
-    const highlightsArray = adminForm.highlights
-      .split(",")
-      .map((h) => h.trim())
-      .filter((h) => h.length > 0);
-    const newRoute = {
-      id: Date.now(),
-      name: routeName,
-      description: adminForm.description,
-      duration: adminForm.duration,
-      highlights: highlightsArray,
-      fullItinerary: adminForm.itinerary,
-      priceOptions: [...adminForm.priceOptions],
-      priceRange: { min: Math.min(...prices), max: Math.max(...prices) },
-    };
-    setSafariRoutes((prev) => [...prev, newRoute]);
-    Swal.fire({
-      title: "✅ Package Created!",
-      html: `<p><strong>${newRoute.name}</strong> created with prices €${Math.min(...prices)} - €${Math.max(...prices)}.</p>`,
-      icon: "success",
-      confirmButtonColor: "#d97706",
-    });
-    setAdminForm({
-      routeName: "",
-      description: "",
-      duration: "3-5 days recommended",
-      highlights: "",
-      itinerary: "",
-      priceOptions: [
-        { people: 2, price: 350, currency: "euro" },
-        { people: 3, price: 280, currency: "euro" },
-        { people: 4, price: 240, currency: "euro" },
-        { people: 5, price: 200, currency: "euro" },
-        { people: 6, price: 180, currency: "euro" },
-        { people: 7, price: 160, currency: "euro" },
-        { people: 8, price: 150, currency: "euro" },
-      ],
-    });
-    setShowAdminForm(false);
-  };
-
-  const handleDeletePackage = (routeId) => {
-    if (!isAuthenticated) {
-      Swal.fire({
-        title: "Access Denied",
-        text: "Only admins can delete.",
-        icon: "error",
-        confirmButtonColor: "#d97706",
-      });
-      return;
-    }
-    Swal.fire({
-      title: "Delete Package?",
-      text: "This cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d97706",
-      cancelButtonColor: "#6b7280",
-      confirmButtonText: "Yes, delete!",
-    }).then((result) => {
-      if (result.isConfirmed) {
-        setSafariRoutes((prev) => prev.filter((route) => route.id !== routeId));
-        if (selectedRoute?.id === routeId) setSelectedRoute(null);
-        Swal.fire({
-          title: "Deleted!",
-          text: "Package removed.",
-          icon: "success",
-          confirmButtonColor: "#d97706",
-        });
-      }
-    });
-  };
-
   // ============ BOOKING FUNCTIONS ============
   const handleRouteSelect = async (route) => {
     if (!selectedLodge) {
       const result = await Swal.fire({
-        title: "Lodge Required",
-        text: "Select accommodation first.",
+        title: "🏨 Lodge Required",
+        html: `
+          <div style="text-align: left;">
+            <p>Please select your accommodation first before choosing a safari package.</p>
+            <div style="background: #fef3c7; padding: 12px; border-radius: 8px; margin-top: 10px;">
+              <p style="margin: 0; font-size: 14px;">💡 You'll be able to choose from 7 premium lodges in Amboseli.</p>
+            </div>
+          </div>
+        `,
         icon: "info",
         showCancelButton: true,
         confirmButtonColor: "#d97706",
-        confirmButtonText: "Choose Lodge",
+        cancelButtonColor: "#6b7280",
+        confirmButtonText: "🏨 Choose Lodge",
         cancelButtonText: "Maybe Later",
       });
       if (result.isConfirmed) setShowLodgeModal(true);
@@ -668,10 +879,12 @@ const Amboseli = () => {
 
   const handleLodgeSelection = (lodge) => {
     Swal.fire({
-      title: "Selecting...",
-      text: "Saving preference.",
+      title: "🏨 Selecting Lodge...",
+      text: "Please wait while we save your preference.",
       allowOutsideClick: false,
-      didOpen: () => Swal.showLoading(),
+      didOpen: () => {
+        Swal.showLoading();
+      },
     });
     setTimeout(() => {
       setSelectedLodge(lodge);
@@ -683,13 +896,21 @@ const Amboseli = () => {
           step: "lodge_selected",
           timestamp: new Date().toISOString(),
           page: "Amboseli",
-        }),
+        })
       );
+      Swal.close();
       Swal.fire({
-        title: "Lodge Selected!",
-        html: `<strong>${lodge.name}</strong> selected.`,
+        title: "✅ Lodge Selected!",
+        html: `
+          <div style="padding: 10px;">
+            <p style="font-size: 18px; font-weight: bold; color: #166534;">${lodge.name}</p>
+            <p style="color: #6b7280;">has been selected for your stay in Amboseli.</p>
+          </div>
+        `,
         icon: "success",
         confirmButtonColor: "#d97706",
+        confirmButtonText: "Continue",
+        timer: 2500,
       });
       setShowLodgeModal(false);
     }, 1000);
@@ -700,15 +921,15 @@ const Amboseli = () => {
     for (let i = 1; i <= days; i++) {
       if (i === 1)
         itineraries.push(
-          `Day ${i}: Arrival at Amboseli, check-in at ${selectedLodge?.name || "lodge"} and afternoon game drive.`,
+          `Day ${i}: Arrival at Amboseli, check-in at ${selectedLodge?.name || "lodge"} and afternoon game drive.`
         );
       else if (i === days)
         itineraries.push(
-          `Day ${i}: Sunrise game drive with Kilimanjaro backdrop, breakfast, and departure.`,
+          `Day ${i}: Sunrise game drive with Kilimanjaro backdrop, breakfast, and departure.`
         );
       else
         itineraries.push(
-          `Day ${i}: Full day exploring Amboseli's swamps and plains. ${selectedLodge ? `Overnight at ${selectedLodge.name}.` : ""}`,
+          `Day ${i}: Full day exploring Amboseli's swamps and plains. ${selectedLodge ? `Overnight at ${selectedLodge.name}.` : ""}`
         );
     }
     return itineraries;
@@ -726,19 +947,21 @@ const Amboseli = () => {
   const validateBookingReadiness = () => {
     if (!selectedLodge) {
       Swal.fire({
-        title: "Accommodation Required",
-        text: "Select a lodge first.",
+        title: "🏨 Accommodation Required",
+        text: "Please select a lodge before booking.",
         icon: "warning",
         confirmButtonColor: "#d97706",
+        confirmButtonText: "OK",
       });
       return false;
     }
     if (!selectedRoute) {
       Swal.fire({
-        title: "Safari Route Required",
-        text: "Select a package.",
+        title: "🗺️ Safari Route Required",
+        text: "Please select a safari package.",
         icon: "warning",
         confirmButtonColor: "#d97706",
+        confirmButtonText: "OK",
       });
       return false;
     }
@@ -747,21 +970,25 @@ const Amboseli = () => {
 
   const handleFormChange = (e) =>
     setBookingForm({ ...bookingForm, [e.target.name]: e.target.value });
+  
   const handleImageError = (e, fallback) => {
     e.target.onerror = null;
     e.target.src = fallback;
   };
+  
   const openGalleryModal = (index) => {
     setActiveGalleryImage(index);
     setShowGalleryModal(true);
   };
+  
   const nextGalleryImage = () =>
     setActiveGalleryImage((prev) =>
-      prev === galleryImages.length - 1 ? 0 : prev + 1,
+      prev === galleryImages.length - 1 ? 0 : prev + 1
     );
+  
   const prevGalleryImage = () =>
     setActiveGalleryImage((prev) =>
-      prev === 0 ? galleryImages.length - 1 : prev - 1,
+      prev === 0 ? galleryImages.length - 1 : prev - 1
     );
 
   // Backend booking API
@@ -775,10 +1002,16 @@ const Amboseli = () => {
       const result = await response.json();
       if (response.ok && result.success) {
         Swal.fire({
-          title: "✅ Booking Sent!",
-          text: "Check your email for confirmation.",
+          title: "✅ Booking Sent Successfully!",
+          html: `
+            <div style="text-align: left; padding: 10px;">
+              <p>Your booking reference: <strong style="color: #d97706;">${result.bookingId || 'AMB-2024-001'}</strong></p>
+              <p style="color: #6b7280; font-size: 14px;">A confirmation email has been sent to your email address.</p>
+            </div>
+          `,
           icon: "success",
           confirmButtonColor: "#d97706",
+          confirmButtonText: "📧 Check Email",
         });
         return { success: true };
       }
@@ -792,7 +1025,7 @@ const Amboseli = () => {
   const sendDirectEmail = (bookingData) => {
     const body = `AMBOSELI SAFARI BOOKING:\n\n📍 ${bookingData.park}\n🏨 ${bookingData.lodge}\n🚗 ${bookingData.route}\n📅 ${bookingData.days} days\n👥 ${bookingData.travelers} pax\n💰 €${bookingData.totalPrice}\n\n👤 ${bookingData.fullName}\n📧 ${bookingData.email}\n📞 ${bookingData.phone}\n📅 Start: ${bookingData.startDate || "Flexible"}\n\n💬 ${bookingData.message || "None"}`;
     window.open(
-      `mailto:tembo4401@gmail.com?subject=Amboseli Booking: ${bookingData.route} - ${bookingData.fullName}&body=${encodeURIComponent(body)}`,
+      `mailto:tembo4401@gmail.com?subject=Amboseli Booking: ${bookingData.route} - ${bookingData.fullName}&body=${encodeURIComponent(body)}`
     );
   };
 
@@ -800,11 +1033,9 @@ const Amboseli = () => {
     e.preventDefault();
     if (!validateBookingReadiness()) return;
     setIsLoading(true);
-    Swal.fire({
-      title: "Processing...",
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading(),
-    });
+    
+    // Show loading spinner
+    showLoadingSpinner("⏳ Processing your booking...");
 
     setTimeout(async () => {
       const totalPrice = calculatePrice(bookingForm.travelers, selectedRoute);
@@ -831,9 +1062,19 @@ const Amboseli = () => {
         lodgeFeatures: selectedLodge.features?.join(", ") || "",
       };
 
-      // Try backend first, fallback to email
       const result = await sendBookingToBackend(bookingData);
-      if (!result.success) sendDirectEmail({ ...bookingData, itinerary });
+      if (!result.success) {
+        Swal.close();
+        Swal.fire({
+          title: "⚠️ Email Service Issue",
+          text: "We encountered an issue with our email service. A fallback email option will open.",
+          icon: "warning",
+          confirmButtonColor: "#d97706",
+          confirmButtonText: "📧 Open Email",
+        }).then(() => {
+          sendDirectEmail({ ...bookingData, itinerary });
+        });
+      }
 
       setShowBookingModal(false);
       setBookingForm({
@@ -850,16 +1091,27 @@ const Amboseli = () => {
 
   const handleClearLodgeSelection = () => {
     Swal.fire({
-      title: "Change Lodge?",
-      text: "Are you sure?",
+      title: "🔄 Change Lodge?",
+      text: "Are you sure you want to change your selected lodge?",
       icon: "question",
       showCancelButton: true,
       confirmButtonColor: "#d97706",
+      cancelButtonColor: "#6b7280",
       confirmButtonText: "Yes, Change",
+      cancelButtonText: "Cancel",
     }).then((result) => {
       if (result.isConfirmed) {
         setSelectedLodge(null);
         localStorage.removeItem("amboseliBooking");
+        Swal.fire({
+          title: "✅ Lodge Cleared",
+          text: "You can now select a new lodge.",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+          toast: true,
+          position: 'top-end',
+        });
       }
     });
   };
@@ -913,7 +1165,7 @@ const Amboseli = () => {
   // ============ RENDER ============
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 to-amber-100 overflow-x-hidden">
-      {/* Hero */}
+      {/* Hero Section */}
       <div className="relative h-96 overflow-hidden">
         <img
           src={parkInfo.image}
@@ -933,7 +1185,7 @@ const Amboseli = () => {
             {selectedLodge && (
               <div className="mt-4 inline-flex flex-wrap items-center bg-amber-700/80 backdrop-blur-sm text-white px-4 py-2 rounded-lg gap-2">
                 <span className="font-semibold">
-                  Lodge: {selectedLodge.name}
+                  🏨 Lodge: {selectedLodge.name}
                 </span>
                 <button
                   onClick={handleClearLodgeSelection}
@@ -966,9 +1218,9 @@ const Amboseli = () => {
                     {!selectedLodge ? (
                       <button
                         onClick={() => setShowLodgeModal(true)}
-                        className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-semibold"
+                        className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-semibold transition-all"
                       >
-                        Choose Lodge
+                        🏨 Choose Lodge
                       </button>
                     ) : (
                       <div className="flex gap-2">
@@ -1032,10 +1284,10 @@ const Amboseli = () => {
                 </h3>
                 <div className="space-y-4">
                   {[
-                    "Elephant Paradise",
-                    "Kilimanjaro Views",
-                    "Diverse Ecosystems",
-                    "Cultural Experience",
+                    "🐘 Elephant Paradise",
+                    "🏔️ Kilimanjaro Views",
+                    "🌿 Diverse Ecosystems",
+                    "🎭 Cultural Experience",
                   ].map((title, i) => (
                     <div key={i} className="flex items-start space-x-4">
                       <div className="bg-amber-100 p-3 rounded-lg">
@@ -1090,7 +1342,7 @@ const Amboseli = () => {
               </div>
               <button
                 onClick={() => setShowLodgeModal(true)}
-                className="bg-white text-amber-600 px-4 py-2 rounded-lg font-semibold"
+                className="bg-white text-amber-600 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-all"
               >
                 Browse Lodges
               </button>
@@ -1130,9 +1382,9 @@ const Amboseli = () => {
             <div className="text-center">
               <button
                 onClick={() => openGalleryModal(0)}
-                className="bg-amber-600 hover:bg-amber-700 text-white px-6 py-3 rounded-lg font-semibold"
+                className="bg-amber-600 hover:bg-amber-700 text-white px-6 py-3 rounded-lg font-semibold transition-all"
               >
-                View Full Gallery ({galleryImages.length} images)
+                🖼️ View Full Gallery ({galleryImages.length} images)
               </button>
             </div>
           </SectionHeader>
@@ -1183,20 +1435,28 @@ const Amboseli = () => {
               <div>
                 <p className="text-gray-600">
                   {selectedLodge
-                    ? `Packages with ${selectedLodge.name}`
+                    ? `🏨 Packages with ${selectedLodge.name}`
                     : "Select a lodge first"}
                 </p>
                 <p className="text-sm text-amber-600 mt-1">
                   📍 {filteredSafariRoutes.length} Amboseli packages
+                  {loadingPackages && " (loading...)"}
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={fetchPackagesFromDatabase}
+                  disabled={loadingPackages}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition-all disabled:opacity-50"
+                >
+                  {loadingPackages ? "⏳ Loading..." : "🔄 Refresh"}
+                </button>
                 {isAuthenticated && (
                   <button
                     onClick={() => setShowAdminForm(true)}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold"
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold transition-all"
                   >
-                    + Add New Package
+                    ✨ + Add New Package
                   </button>
                 )}
               </div>
@@ -1204,11 +1464,12 @@ const Amboseli = () => {
             {!selectedLodge ? (
               <div className="text-center py-12 bg-white rounded-xl shadow-lg">
                 <h3 className="text-xl font-semibold mb-3">
-                  Lodge Selection Required
+                  🏨 Lodge Selection Required
                 </h3>
+                <p className="text-gray-600 mb-4">Please select a lodge first to view available packages.</p>
                 <button
                   onClick={() => setShowLodgeModal(true)}
-                  className="bg-gradient-to-r from-amber-600 to-amber-700 text-white px-6 py-3 rounded-lg font-semibold"
+                  className="bg-gradient-to-r from-amber-600 to-amber-700 text-white px-6 py-3 rounded-lg font-semibold hover:from-amber-700 hover:to-amber-800 transition-all"
                 >
                   Select Your Lodge Now
                 </button>
@@ -1216,14 +1477,14 @@ const Amboseli = () => {
             ) : filteredSafariRoutes.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-xl shadow-lg">
                 <h3 className="text-xl font-semibold mb-2">
-                  No Packages Available
+                  📦 No Packages Available
                 </h3>
                 {isAuthenticated ? (
                   <button
                     onClick={() => setShowAdminForm(true)}
-                    className="bg-amber-600 text-white px-6 py-3 rounded-lg"
+                    className="bg-amber-600 text-white px-6 py-3 rounded-lg hover:bg-amber-700 transition-all"
                   >
-                    Create Package
+                    ✨ Create Package
                   </button>
                 ) : (
                   <p className="text-gray-600">
@@ -1317,7 +1578,7 @@ const Amboseli = () => {
                           {route.description?.length > 100 && (
                             <button
                               onClick={() => toggleCardExpand(route.id)}
-                              className="text-amber-600 text-xs font-semibold"
+                              className="text-amber-600 text-xs font-semibold hover:text-amber-700"
                             >
                               {isExpanded ? "Show Less" : "Show More"}
                             </button>
@@ -1334,7 +1595,7 @@ const Amboseli = () => {
                           </div>
                           <div className="flex justify-between items-center mb-2">
                             <div className="text-amber-600 font-bold text-xs">
-                              €{route.priceRange.min} - €{route.priceRange.max}
+                              €{route.priceRange?.min || 0} - €{route.priceRange?.max || 0}
                             </div>
                             <span className="text-xs text-gray-500">
                               {route.duration}
@@ -1344,7 +1605,7 @@ const Amboseli = () => {
                             onClick={() => handleRouteSelect(route)}
                             className="w-full bg-amber-600 hover:bg-amber-700 text-white py-1.5 px-2 rounded-lg font-semibold text-xs transition-all"
                           >
-                            Select Package
+                            🗺️ Select Package
                           </button>
                         </div>
                       </div>
@@ -1355,7 +1616,7 @@ const Amboseli = () => {
                   <div className="mt-8 text-center">
                     <button
                       onClick={() => setShowAllPackages(!showAllPackages)}
-                      className="bg-gradient-to-r from-amber-600 to-amber-700 text-white px-6 py-3 rounded-lg font-semibold"
+                      className="bg-gradient-to-r from-amber-600 to-amber-700 text-white px-6 py-3 rounded-lg font-semibold hover:from-amber-700 hover:to-amber-800 transition-all"
                     >
                       {showAllPackages
                         ? "Show Less"
@@ -1378,7 +1639,7 @@ const Amboseli = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
                   <h3 className="text-xl font-semibold mb-4">
-                    Africa's Tallest Backdrop
+                    🏔️ Africa's Tallest Backdrop
                   </h3>
                   <p className="text-gray-700 mb-4">
                     Mount Kilimanjaro (5,895m) provides a dramatic backdrop to
@@ -1396,7 +1657,7 @@ const Amboseli = () => {
                   </ul>
                 </div>
                 <div className="bg-amber-50 p-6 rounded-lg">
-                  <h4 className="font-semibold mb-3">Elephant Conservation</h4>
+                  <h4 className="font-semibold mb-3">🐘 Elephant Conservation</h4>
                   <div className="flex items-start">
                     <div className="bg-amber-100 p-2 rounded mr-3">
                       <span>🐘</span>
@@ -1417,7 +1678,7 @@ const Amboseli = () => {
         {/* Plan Your Adventure */}
         <div className="mb-16">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-800 font-serif mb-6">
-            Plan Your Amboseli Adventure
+            📋 Plan Your Amboseli Adventure
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
             {[
@@ -1425,13 +1686,20 @@ const Amboseli = () => {
                 step: 1,
                 title: "Choose Your Lodge",
                 desc: "Select from 7 premium lodges",
+                emoji: "🏨",
               },
               {
                 step: 2,
                 title: "Select Safari Package",
                 desc: "Choose a safari route",
+                emoji: "🗺️",
               },
-              { step: 3, title: "Book & Confirm", desc: "Secure your spot" },
+              { 
+                step: 3, 
+                title: "Book & Confirm", 
+                desc: "Secure your spot",
+                emoji: "✅",
+              },
             ].map((s) => (
               <div
                 key={s.step}
@@ -1445,7 +1713,7 @@ const Amboseli = () => {
                   </div>
                   <div className="pl-8 md:pl-10 pt-2">
                     <h3 className="font-bold text-gray-800 text-base md:text-lg mb-1">
-                      {s.title}
+                      {s.emoji} {s.title}
                     </h3>
                     <p className="text-gray-500 text-xs md:text-sm">{s.desc}</p>
                   </div>
@@ -1513,7 +1781,7 @@ const Amboseli = () => {
         >
           <div className="bg-white rounded-2xl max-w-md w-full p-6">
             <h2 className="text-2xl font-bold mb-4">
-              Select Travelers & Price
+              💰 Select Travelers & Price
             </h2>
             <p className="text-gray-600 mb-6">{selectedRouteForPricing.name}</p>
             <div className="space-y-3 mb-6">
@@ -1521,7 +1789,7 @@ const Amboseli = () => {
                 <button
                   key={o.people}
                   onClick={() => handleFinalPriceSelect(o.people)}
-                  className="w-full flex justify-between items-center p-4 border rounded-lg hover:border-amber-500 hover:bg-amber-50"
+                  className="w-full flex justify-between items-center p-4 border rounded-lg hover:border-amber-500 hover:bg-amber-50 transition-all"
                 >
                   <span className="font-semibold">{o.people} Travelers</span>
                   <span className="text-amber-600 font-bold text-xl">
@@ -1532,7 +1800,7 @@ const Amboseli = () => {
             </div>
             <button
               onClick={() => setShowPriceModal(false)}
-              className="w-full bg-gray-300 text-gray-700 py-3 rounded-xl font-semibold"
+              className="w-full bg-gray-300 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-400 transition-all"
             >
               Cancel
             </button>
@@ -1548,7 +1816,7 @@ const Amboseli = () => {
         >
           <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-6 flex justify-between items-center border-b">
-              <h2 className="text-2xl font-bold">Select Your Amboseli Lodge</h2>
+              <h2 className="text-2xl font-bold">🏨 Select Your Amboseli Lodge</h2>
               <button
                 onClick={() => setShowLodgeModal(false)}
                 className="text-gray-500 hover:text-gray-700"
@@ -1560,7 +1828,7 @@ const Amboseli = () => {
               {amboseliLodges.map((lodge) => (
                 <div
                   key={lodge.name}
-                  className="border rounded-xl overflow-hidden hover:shadow-xl cursor-pointer"
+                  className="border rounded-xl overflow-hidden hover:shadow-xl cursor-pointer transition-all hover:border-amber-400"
                   onClick={() => handleLodgeSelection(lodge)}
                 >
                   <img
@@ -1588,7 +1856,7 @@ const Amboseli = () => {
                       <span className="text-amber-600 font-bold">
                         {lodge.priceRange}
                       </span>
-                      <button className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm">
+                      <button className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm transition-all">
                         Select
                       </button>
                     </div>
@@ -1608,7 +1876,7 @@ const Amboseli = () => {
         >
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-6 flex justify-between items-center border-b">
-              <h2 className="text-2xl font-bold">Complete Your Booking</h2>
+              <h2 className="text-2xl font-bold">📋 Complete Your Booking</h2>
               <button onClick={() => setShowBookingModal(false)}>✕</button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -1670,18 +1938,18 @@ const Amboseli = () => {
                 ></textarea>
               </div>
               <div className="bg-amber-50 p-4 rounded-lg">
-                <h3 className="font-bold mb-2">Booking Summary</h3>
+                <h3 className="font-bold mb-2">📊 Booking Summary</h3>
                 <p className="text-sm">
-                  <strong>Lodge:</strong> {selectedLodge?.name}
+                  <strong>🏨 Lodge:</strong> {selectedLodge?.name}
                 </p>
                 <p className="text-sm">
-                  <strong>Route:</strong> {selectedRoute?.name}
+                  <strong>🗺️ Route:</strong> {selectedRoute?.name}
                 </p>
                 <p className="text-sm">
-                  <strong>Travelers:</strong> {bookingForm.travelers} pax
+                  <strong>👥 Travelers:</strong> {bookingForm.travelers} pax
                 </p>
                 <p className="text-sm">
-                  <strong>Total:</strong> €
+                  <strong>💰 Total:</strong> €
                   {calculatePrice(bookingForm.travelers, selectedRoute)}
                 </p>
               </div>
@@ -1689,14 +1957,14 @@ const Amboseli = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 rounded-xl font-semibold"
+                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 rounded-xl font-semibold hover:from-amber-700 hover:to-amber-800 transition-all disabled:opacity-50"
                 >
-                  {isLoading ? "Processing..." : "Confirm Booking"}
+                  {isLoading ? "⏳ Processing..." : "✅ Confirm Booking"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowBookingModal(false)}
-                  className="flex-1 bg-gray-300 py-3 rounded-xl font-semibold"
+                  className="flex-1 bg-gray-300 py-3 rounded-xl font-semibold hover:bg-gray-400 transition-all"
                 >
                   Cancel
                 </button>
@@ -1715,7 +1983,7 @@ const Amboseli = () => {
           <div className="relative w-full max-w-5xl mx-4">
             <button
               onClick={() => setShowGalleryModal(false)}
-              className="absolute -top-12 right-0 text-white"
+              className="absolute -top-12 right-0 text-white hover:text-gray-300"
             >
               ✕
             </button>
@@ -1727,13 +1995,13 @@ const Amboseli = () => {
               />
               <button
                 onClick={prevGalleryImage}
-                className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full"
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all"
               >
                 ←
               </button>
               <button
                 onClick={nextGalleryImage}
-                className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full"
+                className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all"
               >
                 →
               </button>
@@ -1764,7 +2032,7 @@ const Amboseli = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="sticky top-0 bg-white p-6 flex justify-between items-center border-b">
-              <h2 className="text-2xl font-bold">Create New Safari Package</h2>
+              <h2 className="text-2xl font-bold">✨ Create New Safari Package</h2>
               <button onClick={() => setShowAdminForm(false)}>✕</button>
             </div>
             <form onSubmit={handleAdminSubmit} className="p-6 space-y-6">
@@ -1778,7 +2046,7 @@ const Amboseli = () => {
                   value={adminForm.routeName}
                   onChange={handleAdminFormChange}
                   placeholder="e.g., 3-Day Amboseli Safari"
-                  className="w-full px-4 py-2 border rounded-lg focus:border-amber-500"
+                  className="w-full px-4 py-2 border rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
                   required
                 />
                 <p className="text-xs text-amber-600 mt-1">
@@ -1794,7 +2062,8 @@ const Amboseli = () => {
                   value={adminForm.description}
                   onChange={handleAdminFormChange}
                   rows="3"
-                  className="w-full px-4 py-2 border rounded-lg"
+                  placeholder="Describe the safari experience..."
+                  className="w-full px-4 py-2 border rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
                   required
                 ></textarea>
               </div>
@@ -1805,7 +2074,7 @@ const Amboseli = () => {
                   name="duration"
                   value={adminForm.duration}
                   onChange={handleAdminFormChange}
-                  className="w-full px-4 py-2 border rounded-lg"
+                  className="w-full px-4 py-2 border rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
                 />
               </div>
               <div>
@@ -1817,7 +2086,8 @@ const Amboseli = () => {
                   name="highlights"
                   value={adminForm.highlights}
                   onChange={handleAdminFormChange}
-                  className="w-full px-4 py-2 border rounded-lg"
+                  placeholder="e.g., Elephant herds, Kilimanjaro views, Bird watching"
+                  className="w-full px-4 py-2 border rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
                 />
               </div>
               <div>
@@ -1827,12 +2097,13 @@ const Amboseli = () => {
                   value={adminForm.itinerary}
                   onChange={handleAdminFormChange}
                   rows="4"
-                  className="w-full px-4 py-2 border rounded-lg"
+                  placeholder="Day by day itinerary..."
+                  className="w-full px-4 py-2 border rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
                 ></textarea>
               </div>
               <div>
                 <label className="block font-semibold mb-2">
-                  Price Options
+                  💰 Price Options
                 </label>
                 {adminForm.priceOptions.map((o, i) => (
                   <div key={i} className="flex gap-2 mb-2">
@@ -1843,7 +2114,7 @@ const Amboseli = () => {
                       onChange={(e) =>
                         handlePriceOptionChange(i, "people", e.target.value)
                       }
-                      className="w-1/3 px-3 py-2 border rounded-lg"
+                      className="w-1/3 px-3 py-2 border rounded-lg focus:border-amber-500"
                     />
                     <input
                       type="number"
@@ -1852,12 +2123,12 @@ const Amboseli = () => {
                       onChange={(e) =>
                         handlePriceOptionChange(i, "price", e.target.value)
                       }
-                      className="w-1/3 px-3 py-2 border rounded-lg"
+                      className="w-1/3 px-3 py-2 border rounded-lg focus:border-amber-500"
                     />
                     <button
                       type="button"
                       onClick={() => removePriceOption(i)}
-                      className="bg-red-500 text-white px-3 py-2 rounded-lg"
+                      className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg transition-all"
                     >
                       Remove
                     </button>
@@ -1866,7 +2137,7 @@ const Amboseli = () => {
                 <button
                   type="button"
                   onClick={addPriceOption}
-                  className="mt-2 bg-amber-600 text-white px-4 py-2 rounded-lg"
+                  className="mt-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg transition-all"
                 >
                   + Add Price Option
                 </button>
@@ -1874,14 +2145,14 @@ const Amboseli = () => {
               <div className="flex gap-4">
                 <button
                   type="submit"
-                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 rounded-xl font-semibold"
+                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 rounded-xl font-semibold hover:from-amber-700 hover:to-amber-800 transition-all"
                 >
-                  Create Package
+                  ✨ Create Package
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowAdminForm(false)}
-                  className="flex-1 bg-gray-300 py-3 rounded-xl font-semibold"
+                  className="flex-1 bg-gray-300 py-3 rounded-xl font-semibold hover:bg-gray-400 transition-all"
                 >
                   Cancel
                 </button>
@@ -1902,7 +2173,7 @@ const Amboseli = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="sticky top-0 bg-white p-6 flex justify-between items-center border-b">
-              <h2 className="text-2xl font-bold">Edit Safari Package</h2>
+              <h2 className="text-2xl font-bold">✏️ Edit Safari Package</h2>
               <button onClick={() => setShowEditModal(false)}>✕</button>
             </div>
             <form onSubmit={handleUpdatePackage} className="p-6 space-y-6">
@@ -1915,7 +2186,7 @@ const Amboseli = () => {
                   name="routeName"
                   value={adminForm.routeName}
                   onChange={handleAdminFormChange}
-                  className="w-full px-4 py-2 border rounded-lg"
+                  className="w-full px-4 py-2 border rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
                   required
                 />
               </div>
@@ -1928,7 +2199,7 @@ const Amboseli = () => {
                   value={adminForm.description}
                   onChange={handleAdminFormChange}
                   rows="3"
-                  className="w-full px-4 py-2 border rounded-lg"
+                  className="w-full px-4 py-2 border rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
                   required
                 ></textarea>
               </div>
@@ -1939,7 +2210,7 @@ const Amboseli = () => {
                   name="duration"
                   value={adminForm.duration}
                   onChange={handleAdminFormChange}
-                  className="w-full px-4 py-2 border rounded-lg"
+                  className="w-full px-4 py-2 border rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
                 />
               </div>
               <div>
@@ -1949,7 +2220,7 @@ const Amboseli = () => {
                   name="highlights"
                   value={adminForm.highlights}
                   onChange={handleAdminFormChange}
-                  className="w-full px-4 py-2 border rounded-lg"
+                  className="w-full px-4 py-2 border rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
                 />
               </div>
               <div>
@@ -1959,12 +2230,12 @@ const Amboseli = () => {
                   value={adminForm.itinerary}
                   onChange={handleAdminFormChange}
                   rows="4"
-                  className="w-full px-4 py-2 border rounded-lg"
+                  className="w-full px-4 py-2 border rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
                 ></textarea>
               </div>
               <div>
                 <label className="block font-semibold mb-2">
-                  Price Options
+                  💰 Price Options
                 </label>
                 {adminForm.priceOptions.map((o, i) => (
                   <div key={i} className="flex gap-2 mb-2">
@@ -1975,7 +2246,7 @@ const Amboseli = () => {
                       onChange={(e) =>
                         handlePriceOptionChange(i, "people", e.target.value)
                       }
-                      className="w-1/3 px-3 py-2 border rounded-lg"
+                      className="w-1/3 px-3 py-2 border rounded-lg focus:border-amber-500"
                     />
                     <input
                       type="number"
@@ -1984,12 +2255,12 @@ const Amboseli = () => {
                       onChange={(e) =>
                         handlePriceOptionChange(i, "price", e.target.value)
                       }
-                      className="w-1/3 px-3 py-2 border rounded-lg"
+                      className="w-1/3 px-3 py-2 border rounded-lg focus:border-amber-500"
                     />
                     <button
                       type="button"
                       onClick={() => removePriceOption(i)}
-                      className="bg-red-500 text-white px-3 py-2 rounded-lg"
+                      className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg transition-all"
                     >
                       Remove
                     </button>
@@ -1998,7 +2269,7 @@ const Amboseli = () => {
                 <button
                   type="button"
                   onClick={addPriceOption}
-                  className="mt-2 bg-amber-600 text-white px-4 py-2 rounded-lg"
+                  className="mt-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg transition-all"
                 >
                   + Add Price Option
                 </button>
@@ -2006,14 +2277,14 @@ const Amboseli = () => {
               <div className="flex gap-4">
                 <button
                   type="submit"
-                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 rounded-xl font-semibold"
+                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 rounded-xl font-semibold hover:from-amber-700 hover:to-amber-800 transition-all"
                 >
-                  Update Package
+                  💾 Update Package
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
-                  className="flex-1 bg-gray-300 py-3 rounded-xl font-semibold"
+                  className="flex-1 bg-gray-300 py-3 rounded-xl font-semibold hover:bg-gray-400 transition-all"
                 >
                   Cancel
                 </button>
