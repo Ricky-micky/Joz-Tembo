@@ -36,6 +36,10 @@ const Amboseli = () => {
   const [editingRoute, setEditingRoute] = useState(null);
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // State for package detail modal
+  const [showPackageDetailModal, setShowPackageDetailModal] = useState(false);
+  const [selectedPackageForDetail, setSelectedPackageForDetail] =
+    useState(null);
 
   const [collapsedSections, setCollapsedSections] = useState({
     parkInfo: false,
@@ -53,8 +57,8 @@ const Amboseli = () => {
   // ============ DATABASE PACKAGES ============
   const [safariRoutes, setSafariRoutes] = useState([]);
 
-  // Fetch packages from PostgreSQL with loading spinner
-  const fetchPackagesFromDatabase = async () => {
+  // Fetch packages from PostgreSQL
+  const fetchPackagesFromDatabase = async (showNotification = false) => {
     setLoadingPackages(true);
     try {
       const response = await fetch(`${API_BASE_URL}/safari-cards`);
@@ -62,17 +66,17 @@ const Amboseli = () => {
         const data = await response.json();
         if (data.success && data.data) {
           // Filter only Amboseli packages
-          const amboseliPackages = data.data.filter(pkg =>
-            pkg.name && pkg.name.toLowerCase().includes('amboseli')
+          const amboseliPackages = data.data.filter(
+            (pkg) => pkg.name && pkg.name.toLowerCase().includes("amboseli"),
           );
           // Convert backend format to frontend format
-          const formattedPackages = amboseliPackages.map(pkg => ({
+          const formattedPackages = amboseliPackages.map((pkg) => ({
             id: pkg.id,
             name: pkg.name,
-            description: pkg.description || '',
+            description: pkg.description || "",
             duration: `${pkg.total_days || 3}-${(pkg.total_days || 3) + 2} days recommended`,
             highlights: pkg.highlights || [],
-            fullItinerary: pkg.fullitinerary || '',
+            fullItinerary: pkg.fullitinerary || "",
             priceOptions: pkg.priceoptions || [
               { people: 2, price: 350, currency: "euro" },
               { people: 4, price: 240, currency: "euro" },
@@ -80,29 +84,35 @@ const Amboseli = () => {
               { people: 8, price: 150, currency: "euro" },
             ],
             priceRange: pkg.pricerange || { min: 150, max: 350 },
+            includes: pkg.includes || [],
+            excludes: pkg.excludes || [],
           }));
           setSafariRoutes(formattedPackages);
-          
-          // Show success notification if packages loaded
-          if (formattedPackages.length > 0) {
+
+          // Only show notification if explicitly requested and user is admin
+          if (
+            showNotification &&
+            isAuthenticated &&
+            formattedPackages.length > 0
+          ) {
             Swal.fire({
-              icon: 'success',
-              title: 'Packages Loaded!',
+              icon: "success",
+              title: "Packages Loaded!",
               text: `Successfully loaded ${formattedPackages.length} Amboseli packages from database.`,
               timer: 2000,
               timerProgressBar: true,
               showConfirmButton: false,
               toast: true,
-              position: 'top-end',
+              position: "top-end",
             });
           }
         }
       } else {
-        throw new Error('Failed to fetch packages');
+        throw new Error("Failed to fetch packages");
       }
     } catch (error) {
-      console.error('Error fetching packages:', error);
-      if (isAuthenticated) {
+      console.error("Error fetching packages:", error);
+      if (isAuthenticated && showNotification) {
         Swal.fire({
           title: "⚠️ Connection Error",
           text: "Could not fetch packages from the database. Please check your connection.",
@@ -110,7 +120,7 @@ const Amboseli = () => {
           confirmButtonColor: "#d97706",
           confirmButtonText: "Try Again",
         }).then(() => {
-          fetchPackagesFromDatabase();
+          fetchPackagesFromDatabase(true);
         });
       }
     } finally {
@@ -118,15 +128,15 @@ const Amboseli = () => {
     }
   };
 
-  // Load packages on mount
+  // Load packages on mount - NO NOTIFICATION
   useEffect(() => {
-    fetchPackagesFromDatabase();
+    fetchPackagesFromDatabase(false);
   }, []);
 
   // Filter packages
   useEffect(() => {
-    const filtered = safariRoutes.filter((route) =>
-      route.name && route.name.toLowerCase().includes('amboseli')
+    const filtered = safariRoutes.filter(
+      (route) => route.name && route.name.toLowerCase().includes("amboseli"),
     );
     setFilteredSafariRoutes(filtered);
     setShowAllPackages(false);
@@ -437,8 +447,13 @@ const Amboseli = () => {
     ],
   });
 
-  // ============ ADMIN CRUD FUNCTIONS WITH SWEETALERT ============
+  // ============ PACKAGE DETAIL MODAL ============
+  const openPackageDetailModal = (route) => {
+    setSelectedPackageForDetail(route);
+    setShowPackageDetailModal(true);
+  };
 
+  // ============ ADMIN CRUD FUNCTIONS ============
   const showLoadingSpinner = (message = "Please wait...") => {
     Swal.fire({
       title: message,
@@ -447,21 +462,6 @@ const Amboseli = () => {
       didOpen: () => {
         Swal.showLoading();
       },
-    });
-  };
-
-  const showSuccessNotification = (title, message, icon = "success") => {
-    Swal.fire({
-      title: title,
-      text: message,
-      icon: icon,
-      timer: 3000,
-      timerProgressBar: true,
-      showConfirmButton: false,
-      toast: true,
-      position: 'top-end',
-      background: '#f0fdf4',
-      color: '#166534',
     });
   };
 
@@ -496,29 +496,33 @@ const Amboseli = () => {
       duration: route.duration,
       highlights: route.highlights ? route.highlights.join(", ") : "",
       itinerary: route.fullItinerary || "",
-      priceOptions: route.priceOptions ? [...route.priceOptions] : [
-        { people: 2, price: 350, currency: "euro" },
-        { people: 4, price: 240, currency: "euro" },
-        { people: 6, price: 180, currency: "euro" },
-        { people: 8, price: 150, currency: "euro" },
-      ],
+      priceOptions: route.priceOptions
+        ? [...route.priceOptions]
+        : [
+            { people: 2, price: 350, currency: "euro" },
+            { people: 4, price: 240, currency: "euro" },
+            { people: 6, price: 180, currency: "euro" },
+            { people: 8, price: 150, currency: "euro" },
+          ],
     });
     setShowEditModal(true);
   };
 
   const handleUpdatePackage = async (e) => {
     e.preventDefault();
-    
+
     const routeName = adminForm.routeName.toLowerCase().startsWith("amboseli")
       ? adminForm.routeName
       : `Amboseli → ${adminForm.routeName}`;
-    
+
     if (!routeName.toLowerCase().includes("amboseli")) {
-      showErrorNotification("⚠️ Invalid Package Name", "Package name must include 'Amboseli'.");
+      showErrorNotification(
+        "⚠️ Invalid Package Name",
+        "Package name must include 'Amboseli'.",
+      );
       return;
     }
 
-    // Show loading spinner
     showLoadingSpinner("⏳ Updating package...");
 
     const prices = adminForm.priceOptions.map((o) => o.price);
@@ -544,19 +548,22 @@ const Amboseli = () => {
     };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/safari-cards/${editingRoute.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+      const response = await fetch(
+        `${API_BASE_URL}/safari-cards/${editingRoute.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          },
+          body: JSON.stringify(updatedPackage),
         },
-        body: JSON.stringify(updatedPackage),
-      });
+      );
 
       const result = await response.json();
 
       if (response.ok && result.success) {
-        Swal.close(); // Close loading spinner
+        Swal.close();
         Swal.fire({
           title: "✅ Package Updated Successfully!",
           html: `
@@ -565,7 +572,6 @@ const Amboseli = () => {
               <div style="background: #f0fdf4; padding: 15px; border-radius: 8px; margin-top: 15px;">
                 <p><strong>📅 Duration:</strong> ${adminForm.duration}</p>
                 <p><strong>💰 Price Range:</strong> €${Math.min(...prices)} - €${Math.max(...prices)}</p>
-                <p><strong>🏷️ Highlights:</strong> ${highlightsArray.slice(0, 3).join(', ')}${highlightsArray.length > 3 ? '...' : ''}</p>
               </div>
             </div>
           `,
@@ -574,7 +580,7 @@ const Amboseli = () => {
           confirmButtonText: "Great!",
           timer: 4000,
         });
-        await fetchPackagesFromDatabase();
+        await fetchPackagesFromDatabase(true);
         setShowEditModal(false);
         setEditingRoute(null);
       } else {
@@ -583,23 +589,28 @@ const Amboseli = () => {
     } catch (error) {
       console.error("Error updating package:", error);
       Swal.close();
-      showErrorNotification("❌ Update Failed", "Could not update the package in the database. Please try again.");
+      showErrorNotification(
+        "❌ Update Failed",
+        "Could not update the package in the database. Please try again.",
+      );
     }
   };
 
   const handleAdminSubmit = async (e) => {
     e.preventDefault();
-    
+
     const routeName = adminForm.routeName.toLowerCase().startsWith("amboseli")
       ? adminForm.routeName
       : `Amboseli → ${adminForm.routeName}`;
-    
+
     if (!routeName.toLowerCase().includes("amboseli")) {
-      showErrorNotification("⚠️ Invalid Package Name", "Package name must include 'Amboseli'.");
+      showErrorNotification(
+        "⚠️ Invalid Package Name",
+        "Package name must include 'Amboseli'.",
+      );
       return;
     }
 
-    // Show loading spinner with progress
     showLoadingSpinner("⏳ Creating your safari package...");
 
     const prices = adminForm.priceOptions.map((o) => o.price);
@@ -637,9 +648,8 @@ const Amboseli = () => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        Swal.close(); // Close loading spinner
-        
-        // Beautiful success notification
+        Swal.close();
+
         Swal.fire({
           title: "🎉 Package Created Successfully!",
           html: `
@@ -649,10 +659,9 @@ const Amboseli = () => {
               </div>
               <div style="background: #f0fdf4; padding: 15px; border-radius: 8px;">
                 <p><strong>📅 Duration:</strong> ${adminForm.duration}</p>
-                <p><strong>💰 Price Range:</strong> €${Math.min(...prices)} - €${Math.max(...prices)}</p>
-                <p><strong>🏷️ Highlights:</strong></p>
+                <p><strong>💰 Price Options:</strong></p>
                 <ul style="text-align: left; padding-left: 20px;">
-                  ${highlightsArray.map(h => `<li>${h}</li>`).join('')}
+                  ${adminForm.priceOptions.map((o) => `<li>${o.people} pax: €${o.price}</li>`).join("")}
                 </ul>
               </div>
             </div>
@@ -665,14 +674,11 @@ const Amboseli = () => {
           cancelButtonColor: "#6b7280",
         }).then((result) => {
           if (result.isConfirmed) {
-            // Show the new package
             setShowAllPackages(true);
           }
-          // Refresh packages
-          fetchPackagesFromDatabase();
+          fetchPackagesFromDatabase(true);
         });
-        
-        // Reset form
+
         setAdminForm({
           routeName: "",
           description: "",
@@ -696,7 +702,10 @@ const Amboseli = () => {
     } catch (error) {
       console.error("Error creating package:", error);
       Swal.close();
-      showErrorNotification("❌ Creation Failed", "Could not save the package to the database. Please try again.");
+      showErrorNotification(
+        "❌ Creation Failed",
+        "Could not save the package to the database. Please try again.",
+      );
     }
   };
 
@@ -712,8 +721,7 @@ const Amboseli = () => {
       return;
     }
 
-    // Find the package name for confirmation
-    const packageToDelete = safariRoutes.find(r => r.id === routeId);
+    const packageToDelete = safariRoutes.find((r) => r.id === routeId);
     const packageName = packageToDelete?.name || "this package";
 
     Swal.fire({
@@ -724,27 +732,29 @@ const Amboseli = () => {
           <div style="background: #fee2e2; padding: 15px; border-radius: 8px; margin: 10px 0;">
             <p style="font-weight: bold; color: #991b1b; margin: 0;">${packageName}</p>
           </div>
-          <p style="color: #6b7280; font-size: 14px;">This action cannot be undone. All associated data will be removed from the database.</p>
+          <p style="color: #6b7280; font-size: 14px;">This action cannot be undone.</p>
         </div>
       `,
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#dc2626",
       cancelButtonColor: "#6b7280",
-      confirmButtonText: "🗑️ Yes, Delete Permanently",
+      confirmButtonText: "🗑️ Yes, Delete",
       cancelButtonText: "Cancel",
     }).then(async (result) => {
       if (result.isConfirmed) {
-        // Show loading
         showLoadingSpinner("⏳ Deleting package...");
 
         try {
-          const response = await fetch(`${API_BASE_URL}/safari-cards/${routeId}`, {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          const response = await fetch(
+            `${API_BASE_URL}/safari-cards/${routeId}`,
+            {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+              },
             },
-          });
+          );
 
           if (response.ok) {
             Swal.close();
@@ -763,7 +773,7 @@ const Amboseli = () => {
               confirmButtonText: "OK",
               timer: 3000,
             });
-            await fetchPackagesFromDatabase();
+            await fetchPackagesFromDatabase(true);
             if (selectedRoute?.id === routeId) setSelectedRoute(null);
           } else {
             throw new Error("Failed to delete package");
@@ -771,7 +781,10 @@ const Amboseli = () => {
         } catch (error) {
           console.error("Error deleting package:", error);
           Swal.close();
-          showErrorNotification("❌ Delete Failed", "Could not delete the package from the database. Please try again.");
+          showErrorNotification(
+            "❌ Delete Failed",
+            "Could not delete the package from the database. Please try again.",
+          );
         }
       }
     });
@@ -896,7 +909,7 @@ const Amboseli = () => {
           step: "lodge_selected",
           timestamp: new Date().toISOString(),
           page: "Amboseli",
-        })
+        }),
       );
       Swal.close();
       Swal.fire({
@@ -921,15 +934,15 @@ const Amboseli = () => {
     for (let i = 1; i <= days; i++) {
       if (i === 1)
         itineraries.push(
-          `Day ${i}: Arrival at Amboseli, check-in at ${selectedLodge?.name || "lodge"} and afternoon game drive.`
+          `Day ${i}: Arrival at Amboseli, check-in at ${selectedLodge?.name || "lodge"} and afternoon game drive.`,
         );
       else if (i === days)
         itineraries.push(
-          `Day ${i}: Sunrise game drive with Kilimanjaro backdrop, breakfast, and departure.`
+          `Day ${i}: Sunrise game drive with Kilimanjaro backdrop, breakfast, and departure.`,
         );
       else
         itineraries.push(
-          `Day ${i}: Full day exploring Amboseli's swamps and plains. ${selectedLodge ? `Overnight at ${selectedLodge.name}.` : ""}`
+          `Day ${i}: Full day exploring Amboseli's swamps and plains. ${selectedLodge ? `Overnight at ${selectedLodge.name}.` : ""}`,
         );
     }
     return itineraries;
@@ -970,25 +983,25 @@ const Amboseli = () => {
 
   const handleFormChange = (e) =>
     setBookingForm({ ...bookingForm, [e.target.name]: e.target.value });
-  
+
   const handleImageError = (e, fallback) => {
     e.target.onerror = null;
     e.target.src = fallback;
   };
-  
+
   const openGalleryModal = (index) => {
     setActiveGalleryImage(index);
     setShowGalleryModal(true);
   };
-  
+
   const nextGalleryImage = () =>
     setActiveGalleryImage((prev) =>
-      prev === galleryImages.length - 1 ? 0 : prev + 1
+      prev === galleryImages.length - 1 ? 0 : prev + 1,
     );
-  
+
   const prevGalleryImage = () =>
     setActiveGalleryImage((prev) =>
-      prev === 0 ? galleryImages.length - 1 : prev - 1
+      prev === 0 ? galleryImages.length - 1 : prev - 1,
     );
 
   // Backend booking API
@@ -1005,7 +1018,7 @@ const Amboseli = () => {
           title: "✅ Booking Sent Successfully!",
           html: `
             <div style="text-align: left; padding: 10px;">
-              <p>Your booking reference: <strong style="color: #d97706;">${result.bookingId || 'AMB-2024-001'}</strong></p>
+              <p>Your booking reference: <strong style="color: #d97706;">${result.bookingId || "AMB-2024-001"}</strong></p>
               <p style="color: #6b7280; font-size: 14px;">A confirmation email has been sent to your email address.</p>
             </div>
           `,
@@ -1025,7 +1038,7 @@ const Amboseli = () => {
   const sendDirectEmail = (bookingData) => {
     const body = `AMBOSELI SAFARI BOOKING:\n\n📍 ${bookingData.park}\n🏨 ${bookingData.lodge}\n🚗 ${bookingData.route}\n📅 ${bookingData.days} days\n👥 ${bookingData.travelers} pax\n💰 €${bookingData.totalPrice}\n\n👤 ${bookingData.fullName}\n📧 ${bookingData.email}\n📞 ${bookingData.phone}\n📅 Start: ${bookingData.startDate || "Flexible"}\n\n💬 ${bookingData.message || "None"}`;
     window.open(
-      `mailto:tembo4401@gmail.com?subject=Amboseli Booking: ${bookingData.route} - ${bookingData.fullName}&body=${encodeURIComponent(body)}`
+      `mailto:tembo4401@gmail.com?subject=Amboseli Booking: ${bookingData.route} - ${bookingData.fullName}&body=${encodeURIComponent(body)}`,
     );
   };
 
@@ -1033,8 +1046,7 @@ const Amboseli = () => {
     e.preventDefault();
     if (!validateBookingReadiness()) return;
     setIsLoading(true);
-    
-    // Show loading spinner
+
     showLoadingSpinner("⏳ Processing your booking...");
 
     setTimeout(async () => {
@@ -1110,7 +1122,7 @@ const Amboseli = () => {
           timer: 1500,
           showConfirmButton: false,
           toast: true,
-          position: 'top-end',
+          position: "top-end",
         });
       }
     });
@@ -1126,6 +1138,7 @@ const Amboseli = () => {
       setShowAdminForm(false);
       setShowEditModal(false);
       setShowAttractionModal(false);
+      setShowPackageDetailModal(false);
     }
   };
 
@@ -1444,20 +1457,22 @@ const Amboseli = () => {
                 </p>
               </div>
               <div className="flex gap-2 flex-wrap">
-                <button
-                  onClick={fetchPackagesFromDatabase}
-                  disabled={loadingPackages}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition-all disabled:opacity-50"
-                >
-                  {loadingPackages ? "⏳ Loading..." : "🔄 Refresh"}
-                </button>
                 {isAuthenticated && (
-                  <button
-                    onClick={() => setShowAdminForm(true)}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold transition-all"
-                  >
-                    ✨ + Add New Package
-                  </button>
+                  <>
+                    <button
+                      onClick={() => fetchPackagesFromDatabase(true)}
+                      disabled={loadingPackages}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition-all disabled:opacity-50"
+                    >
+                      {loadingPackages ? "⏳ Loading..." : "🔄 Refresh"}
+                    </button>
+                    <button
+                      onClick={() => setShowAdminForm(true)}
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold transition-all"
+                    >
+                      ✨ + Add New Package
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -1466,7 +1481,9 @@ const Amboseli = () => {
                 <h3 className="text-xl font-semibold mb-3">
                   🏨 Lodge Selection Required
                 </h3>
-                <p className="text-gray-600 mb-4">Please select a lodge first to view available packages.</p>
+                <p className="text-gray-600 mb-4">
+                  Please select a lodge first to view available packages.
+                </p>
                 <button
                   onClick={() => setShowLodgeModal(true)}
                   className="bg-gradient-to-r from-amber-600 to-amber-700 text-white px-6 py-3 rounded-lg font-semibold hover:from-amber-700 hover:to-amber-800 transition-all"
@@ -1500,16 +1517,11 @@ const Amboseli = () => {
                     : filteredSafariRoutes.slice(0, 6)
                   ).map((route) => {
                     const isExpanded = expandedCards[route.id] || false;
-                    const displayDesc =
-                      isExpanded ||
-                      !route.description ||
-                      route.description.length <= 100
-                        ? route.description
-                        : route.description.substring(0, 100) + "...";
                     return (
                       <div
                         key={route.id}
-                        className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all border border-amber-200 relative group"
+                        className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all border border-amber-200 relative group cursor-pointer"
+                        onClick={() => openPackageDetailModal(route)}
                       >
                         <div className="absolute top-2 right-2">
                           <span className="bg-amber-600 text-white text-xs px-2 py-1 rounded-full">
@@ -1517,9 +1529,12 @@ const Amboseli = () => {
                           </span>
                         </div>
                         {isAuthenticated && (
-                          <div className="absolute top-12 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="absolute top-12 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                             <button
-                              onClick={() => handleEditPackage(route)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditPackage(route);
+                              }}
                               className="bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-full"
                               title="Edit"
                             >
@@ -1538,7 +1553,10 @@ const Amboseli = () => {
                               </svg>
                             </button>
                             <button
-                              onClick={() => handleDeletePackage(route.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeletePackage(route.id);
+                              }}
                               className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full"
                               title="Delete"
                             >
@@ -1564,7 +1582,7 @@ const Amboseli = () => {
                               {route.name.split("→")[0].trim()}
                             </h3>
                             <p className="text-xs text-amber-100">
-                              Starting Point
+                              Click to view details
                             </p>
                           </div>
                         </div>
@@ -1572,17 +1590,9 @@ const Amboseli = () => {
                           <h3 className="text-xs md:text-sm font-bold text-gray-800 mb-1 truncate">
                             {route.name}
                           </h3>
-                          <p className="text-gray-600 text-xs mb-2">
-                            {displayDesc}
+                          <p className="text-gray-600 text-xs mb-2 line-clamp-2">
+                            {route.description}
                           </p>
-                          {route.description?.length > 100 && (
-                            <button
-                              onClick={() => toggleCardExpand(route.id)}
-                              className="text-amber-600 text-xs font-semibold hover:text-amber-700"
-                            >
-                              {isExpanded ? "Show Less" : "Show More"}
-                            </button>
-                          )}
                           <div className="flex flex-wrap gap-1 mb-2">
                             {route.highlights?.slice(0, 2).map((h, i) => (
                               <span
@@ -1595,18 +1605,35 @@ const Amboseli = () => {
                           </div>
                           <div className="flex justify-between items-center mb-2">
                             <div className="text-amber-600 font-bold text-xs">
-                              €{route.priceRange?.min || 0} - €{route.priceRange?.max || 0}
+                              {route.priceOptions &&
+                              route.priceOptions.length > 0
+                                ? `€${Math.min(...route.priceOptions.map((o) => o.price))} - €${Math.max(...route.priceOptions.map((o) => o.price))}`
+                                : "Price on request"}
                             </div>
                             <span className="text-xs text-gray-500">
                               {route.duration}
                             </span>
                           </div>
-                          <button
-                            onClick={() => handleRouteSelect(route)}
-                            className="w-full bg-amber-600 hover:bg-amber-700 text-white py-1.5 px-2 rounded-lg font-semibold text-xs transition-all"
-                          >
-                            🗺️ Select Package
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openPackageDetailModal(route);
+                              }}
+                              className="flex-1 bg-amber-100 hover:bg-amber-200 text-amber-700 py-1.5 px-2 rounded-lg font-semibold text-xs transition-all"
+                            >
+                              📖 View Details
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRouteSelect(route);
+                              }}
+                              className="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-1.5 px-2 rounded-lg font-semibold text-xs transition-all"
+                            >
+                              🗺️ Book Now
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1657,7 +1684,9 @@ const Amboseli = () => {
                   </ul>
                 </div>
                 <div className="bg-amber-50 p-6 rounded-lg">
-                  <h4 className="font-semibold mb-3">🐘 Elephant Conservation</h4>
+                  <h4 className="font-semibold mb-3">
+                    🐘 Elephant Conservation
+                  </h4>
                   <div className="flex items-start">
                     <div className="bg-amber-100 p-2 rounded mr-3">
                       <span>🐘</span>
@@ -1694,9 +1723,9 @@ const Amboseli = () => {
                 desc: "Choose a safari route",
                 emoji: "🗺️",
               },
-              { 
-                step: 3, 
-                title: "Book & Confirm", 
+              {
+                step: 3,
+                title: "Book & Confirm",
                 desc: "Secure your spot",
                 emoji: "✅",
               },
@@ -1724,7 +1753,122 @@ const Amboseli = () => {
         </div>
       </div>
 
-      {/* MODALS */}
+      {/* ============ PACKAGE DETAIL MODAL ============ */}
+      {showPackageDetailModal && selectedPackageForDetail && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
+          onClick={handleBackdropClick}
+        >
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white p-6 flex justify-between items-center border-b">
+              <h2 className="text-2xl font-bold">📋 Package Details</h2>
+              <button
+                onClick={() => setShowPackageDetailModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-6">
+              {/* Package Header */}
+              <div className="bg-gradient-to-r from-amber-600 to-amber-700 text-white p-6 rounded-xl mb-6">
+                <h3 className="text-2xl font-bold">
+                  {selectedPackageForDetail.name}
+                </h3>
+                <p className="text-amber-100 mt-2">
+                  {selectedPackageForDetail.duration}
+                </p>
+              </div>
+
+              {/* Description */}
+              <div className="mb-6">
+                <h4 className="text-lg font-bold text-gray-800 mb-2">
+                  📝 Description
+                </h4>
+                <p className="text-gray-700">
+                  {selectedPackageForDetail.description}
+                </p>
+              </div>
+
+              {/* Highlights */}
+              {selectedPackageForDetail.highlights &&
+                selectedPackageForDetail.highlights.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-lg font-bold text-gray-800 mb-2">
+                      ⭐ Highlights
+                    </h4>
+                    <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {selectedPackageForDetail.highlights.map((h, i) => (
+                        <li key={i} className="flex items-center text-gray-700">
+                          <span className="w-2 h-2 bg-amber-600 rounded-full mr-3"></span>
+                          {h}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+              {/* Itinerary */}
+              {selectedPackageForDetail.fullItinerary && (
+                <div className="mb-6">
+                  <h4 className="text-lg font-bold text-gray-800 mb-2">
+                    🗺️ Itinerary
+                  </h4>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-gray-700 whitespace-pre-line">
+                      {selectedPackageForDetail.fullItinerary}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Price Options */}
+              <div className="mb-6">
+                <h4 className="text-lg font-bold text-gray-800 mb-2">
+                  💰 Price Options
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {selectedPackageForDetail.priceOptions &&
+                    selectedPackageForDetail.priceOptions.map((o) => (
+                      <div
+                        key={o.people}
+                        className="bg-amber-50 p-3 rounded-lg text-center border border-amber-200"
+                      >
+                        <p className="text-sm text-gray-600">
+                          {o.people} Travelers
+                        </p>
+                        <p className="text-xl font-bold text-amber-600">
+                          €{o.price}
+                        </p>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-4 mt-6">
+                <button
+                  onClick={() => {
+                    setShowPackageDetailModal(false);
+                    handleRouteSelect(selectedPackageForDetail);
+                  }}
+                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 rounded-xl font-semibold hover:from-amber-700 hover:to-amber-800 transition-all"
+                >
+                  🗺️ Book This Package
+                </button>
+                <button
+                  onClick={() => setShowPackageDetailModal(false)}
+                  className="flex-1 bg-gray-300 py-3 rounded-xl font-semibold hover:bg-gray-400 transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ OTHER MODALS (same as before) ============ */}
       {/* Attraction Modal */}
       {showAttractionModal && selectedAttraction && (
         <div
@@ -1816,7 +1960,9 @@ const Amboseli = () => {
         >
           <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-y-auto">
             <div className="sticky top-0 bg-white p-6 flex justify-between items-center border-b">
-              <h2 className="text-2xl font-bold">🏨 Select Your Amboseli Lodge</h2>
+              <h2 className="text-2xl font-bold">
+                🏨 Select Your Amboseli Lodge
+              </h2>
               <button
                 onClick={() => setShowLodgeModal(false)}
                 className="text-gray-500 hover:text-gray-700"
@@ -2032,7 +2178,9 @@ const Amboseli = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="sticky top-0 bg-white p-6 flex justify-between items-center border-b">
-              <h2 className="text-2xl font-bold">✨ Create New Safari Package</h2>
+              <h2 className="text-2xl font-bold">
+                ✨ Create New Safari Package
+              </h2>
               <button onClick={() => setShowAdminForm(false)}>✕</button>
             </div>
             <form onSubmit={handleAdminSubmit} className="p-6 space-y-6">
@@ -2303,6 +2451,12 @@ const Amboseli = () => {
         .collapsible-content.open {
           max-height: 5000px;
           transition: max-height 0.7s ease-in;
+        }
+        .line-clamp-2 {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
         }
         @keyframes fadeIn {
           from {

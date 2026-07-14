@@ -1,4 +1,4 @@
-// Footer.js - Complete Updated Version with User CRUD Operations & Auth Sync
+// Footer.js - Fixed Version with Proper Auth Sync
 import React, { useState, useRef, useEffect } from "react";
 import {
   FaFacebook,
@@ -41,47 +41,109 @@ import withReactContent from "sweetalert2-react-content";
 const MySwal = withReactContent(Swal);
 
 // ======================== BACKEND API BASE URL =========================
-// Change this to match your deployed backend. If your routes are prefixed
-// with /api, keep it as shown. Otherwise, remove "/api" at the end.
 const API_BASE_URL = "https://joz-tours-backend-2026.onrender.com/api";
 
 // ============ AUTH SYNC HELPER ============
 const dispatchAuthSync = () => {
   window.dispatchEvent(new Event("authChange"));
+  // Also trigger storage event for cross-tab sync
+  const currentToken = localStorage.getItem("access_token");
+  localStorage.setItem("_auth_sync", Date.now().toString());
+  // Dispatch custom event that components can listen to
   window.dispatchEvent(
-    new StorageEvent("storage", {
-      key: "access_token",
-      newValue: localStorage.getItem("access_token"),
+    new CustomEvent("authStateChange", {
+      detail: { token: currentToken },
     }),
   );
 };
 
-// Custom hook to manage authentication state
+// ============ CUSTOM HOOK WITH PROPER STATE MANAGEMENT ============
 const useAuth = () => {
-  const getCurrentUser = () => {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [token, setToken] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Function to load user data from localStorage
+  const loadAuthData = () => {
+    const storedToken = localStorage.getItem("access_token");
     const userStr = localStorage.getItem("user");
-    return userStr ? JSON.parse(userStr) : null;
+
+    if (storedToken && userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setToken(storedToken);
+        setCurrentUser(user);
+        setIsAuthenticated(true);
+      } catch (e) {
+        // Invalid user data, clear it
+        localStorage.removeItem("user");
+        setToken(null);
+        setCurrentUser(null);
+        setIsAuthenticated(false);
+      }
+    } else {
+      setToken(null);
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+    }
+    setIsLoading(false);
   };
 
-  const getToken = () => {
-    return localStorage.getItem("access_token");
-  };
+  // Load auth data on mount and when auth events occur
+  useEffect(() => {
+    loadAuthData();
+
+    // Listen for auth changes
+    const handleAuthChange = () => {
+      loadAuthData();
+    };
+
+    const handleStorageChange = (e) => {
+      if (
+        e.key === "access_token" ||
+        e.key === "user" ||
+        e.key === "_auth_sync"
+      ) {
+        loadAuthData();
+      }
+    };
+
+    const handleCustomAuthEvent = (e) => {
+      loadAuthData();
+    };
+
+    window.addEventListener("authChange", handleAuthChange);
+    window.addEventListener("authStateChange", handleCustomAuthEvent);
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("authChange", handleAuthChange);
+      window.removeEventListener("authStateChange", handleCustomAuthEvent);
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, []);
 
   const logout = () => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("user");
+    setToken(null);
+    setCurrentUser(null);
+    setIsAuthenticated(false);
     dispatchAuthSync();
   };
 
-  const isAuthenticated = () => {
-    return !!getToken();
+  const refreshUser = () => {
+    loadAuthData();
   };
 
   return {
-    currentUser: getCurrentUser(),
-    token: getToken(),
+    currentUser,
+    token,
     logout,
     isAuthenticated,
+    isLoading,
+    refreshUser,
   };
 };
 
@@ -245,7 +307,7 @@ const CookiePolicyModal = ({ isOpen, onClose }) => {
 };
 
 // ============ USER PROFILE MODAL ============
-const UserProfileModal = ({ isOpen, onClose }) => {
+const UserProfileModal = ({ isOpen, onClose, onLogout }) => {
   const [user, setUser] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -259,11 +321,12 @@ const UserProfileModal = ({ isOpen, onClose }) => {
     confirmNewPassword: "",
   });
 
-  // Use the global API_BASE_URL
   const API_URL = API_BASE_URL;
 
   useEffect(() => {
-    if (isOpen && currentUser) loadUserProfile();
+    if (isOpen && currentUser) {
+      loadUserProfile();
+    }
   }, [isOpen]);
 
   const loadUserProfile = async () => {
@@ -305,6 +368,7 @@ const UserProfileModal = ({ isOpen, onClose }) => {
       localStorage.setItem("user", JSON.stringify(data.user));
       setUser(data.user);
       setIsEditing(false);
+      dispatchAuthSync();
       MySwal.fire({
         icon: "success",
         title: "Profile Updated!",
@@ -417,6 +481,7 @@ const UserProfileModal = ({ isOpen, onClose }) => {
         throw new Error(data.error || "Account deletion failed");
       onClose();
       logout();
+      dispatchAuthSync();
       MySwal.fire({
         icon: "success",
         title: "Account Deleted",
@@ -630,7 +695,6 @@ const AuthModal = ({ isOpen, onClose }) => {
     confirmPassword: "",
   });
 
-  // Use the global API_BASE_URL
   const API_URL = API_BASE_URL;
 
   const validateLogin = () => {
@@ -907,13 +971,18 @@ const Footer = () => {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showCookieModal, setShowCookieModal] = useState(false);
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, isAuthenticated, refreshUser } = useAuth();
+
+  // Refresh user on mount and when auth changes
+  useEffect(() => {
+    refreshUser();
+  }, []);
 
   const handleAuthClick = () => {
-    if (currentUser) {
+    if (isAuthenticated && currentUser) {
       MySwal.fire({
         title: "Account",
-        text: "What would you like to do?",
+        text: `Welcome, ${currentUser.name?.split(" ")[0] || "User"}! What would you like to do?`,
         icon: "question",
         showDenyButton: true,
         showCancelButton: true,
@@ -922,16 +991,19 @@ const Footer = () => {
         confirmButtonColor: "#1a2a4f",
         denyButtonColor: "#6b7280",
       }).then((result) => {
-        if (result.isConfirmed) setIsProfileModalOpen(true);
-        else if (result.isDenied) {
+        if (result.isConfirmed) {
+          setIsProfileModalOpen(true);
+        } else if (result.isDenied) {
           MySwal.fire({
             title: "Sign Out?",
             icon: "warning",
             showCancelButton: true,
             confirmButtonColor: "#1a2a4f",
+            confirmButtonText: "Yes, sign out",
           }).then((r) => {
             if (r.isConfirmed) {
               logout();
+              refreshUser();
               MySwal.fire({
                 title: "Signed Out!",
                 timer: 1500,
@@ -1058,13 +1130,17 @@ const Footer = () => {
                   Cookie Policy
                 </button>
 
-                {/* Discreet dot button for Sign In/Profile */}
+                {/* Auth button */}
                 <button
                   onClick={handleAuthClick}
                   className="group relative flex items-center justify-center w-6 h-6 rounded-full hover:bg-white/20 transition-all duration-300"
-                  title={currentUser ? "Account Options" : "Sign In"}
+                  title={
+                    isAuthenticated && currentUser
+                      ? "Account Options"
+                      : "Sign In"
+                  }
                 >
-                  {currentUser ? (
+                  {isAuthenticated && currentUser ? (
                     <>
                       <span className="w-2 h-2 bg-green-400 rounded-full group-hover:scale-110 transition-transform"></span>
                       <span className="absolute opacity-0 group-hover:opacity-100 text-xs whitespace-nowrap bg-white/20 rounded-full px-2 py-0.5 -top-6 left-1/2 -translate-x-1/2 transition-opacity duration-300">
@@ -1088,11 +1164,17 @@ const Footer = () => {
 
       <AuthModal
         isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
+        onClose={() => {
+          setIsAuthModalOpen(false);
+          refreshUser();
+        }}
       />
       <UserProfileModal
         isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
+        onClose={() => {
+          setIsProfileModalOpen(false);
+          refreshUser();
+        }}
       />
       <PrivacyPolicyModal
         isOpen={showPrivacyModal}
@@ -1111,3 +1193,4 @@ const Footer = () => {
 };
 
 export default Footer;
+// postgresql://postgres:erickjoz2025.@db.pdesolebuzbedsqletwm.supabase.co:5432/postgres
